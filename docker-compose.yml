@@ -1,0 +1,22 @@
+# Lancement en une commande :  docker compose up -d --build
+#   App        ->  http://localhost:8080
+#   Synchro    ->  ws://localhost:1234   (collaboratif temps réel)
+services:
+  kessoku:
+    build: .
+    image: kessoku:latest
+    container_name: kessoku
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  # Serveur de synchronisation collaborative (relais WebSocket, sans données persistées).
+  sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync
+    image: kessoku-sync:latest
+    container_name: kessoku-sync
+    ports:
+      - "1234:1234"
+    restart: unless-stopped
