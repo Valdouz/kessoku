@@ -1,0 +1,40 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+*.local
+
+# Secrets / config locale — JAMAIS sur le git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Fichiers sources originaux (dossier provisoire, inventaire avec valeurs)
+# -> on garde les données utiles dérivées dans src/data, pas les originaux.
+reference/
+
+# Éditeurs / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TS incremental build info
+*.tsbuildinfo
