@@ -38,3 +38,7 @@ pnpm-debug.log*
 
 # TS incremental build info
 *.tsbuildinfo
+
+# Données locales du backend (SQLite, secret JWT) — jamais sur git
+data/
+server/data/

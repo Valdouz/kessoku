@@ -16,6 +16,8 @@ export default defineConfig({
   // (npm run sync, port 1234), pour reproduire le comportement de production.
   server: {
     proxy: {
+      // En dev : API d'auth + WebSocket /sync vers le backend local (npm run server).
+      '/api': { target: 'http://localhost:1234', changeOrigin: true },
       '/sync': { target: 'ws://localhost:1234', ws: true },
     },
   },

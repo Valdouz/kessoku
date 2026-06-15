@@ -10,17 +10,28 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - sync
+      - api
     restart: unless-stopped
 
-  # Serveur de synchronisation collaborative (relais WebSocket, aucune donnée persistée).
-  # Interne au réseau Docker : joignable par nginx via http://sync:1234, pas exposé à l'hôte.
-  sync:
+  # Backend : authentification (comptes SQLite) + synchro collaborative.
+  # Interne au réseau Docker (nginx proxifie /api et /sync vers http://api:1234).
+  # Données persistées dans le volume "kessoku-data" (SQLite + secret JWT).
+  api:
     build:
-      context: .
-      dockerfile: Dockerfile.sync
-    image: kessoku-sync:latest
-    container_name: kessoku-sync
+      context: ./server
+    image: kessoku-api:latest
+    container_name: kessoku-api
+    environment:
+      - PORT=1234
+      - DATA_DIR=/data
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+    volumes:
+      - kessoku-data:/data
     expose:
       - "1234"
     restart: unless-stopped
+
+volumes:
+  kessoku-data:
