@@ -1,0 +1,10 @@
+# Serveur de synchronisation collaborative (WebSocket).
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+# Dépendances de production uniquement (inclut "ws").
+RUN npm ci --omit=dev || npm install --omit=dev
+COPY server ./server
+ENV PORT=1234
+EXPOSE 1234
+CMD ["node", "server/sync-server.mjs"]
