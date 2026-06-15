@@ -28,8 +28,10 @@ function defaultWsUrl(): string {
   const env = import.meta.env.VITE_SYNC_URL as string | undefined
   if (env) return env
   if (typeof location === 'undefined') return 'ws://localhost:1234'
+  // Par défaut : même origine, chemin /sync (proxifié vers le serveur de synchro).
+  // => marche en HTTP comme en HTTPS (wss), y compris derrière un tunnel Cloudflare.
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${location.hostname}:1234`
+  return `${proto}://${location.host}/sync`
 }
 
 function loadConfig(): CollabConfig & { autoConnect: boolean } {

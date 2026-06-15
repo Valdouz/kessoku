@@ -63,11 +63,11 @@ export function CollabSection() {
           </Field>
         </div>
 
-        <Field label="Serveur de synchro" htmlFor="collab-url" hint="ws://… ou wss://… (auto-hébergé)">
+        <Field label="Serveur de synchro" htmlFor="collab-url" hint="Auto-détecté (même domaine, /sync). À changer seulement si serveur dédié.">
           <Input
             id="collab-url"
             value={url}
-            placeholder="ws://localhost:1234"
+            placeholder="wss://mon-domaine/sync"
             disabled={connected}
             onChange={(e) => setUrl(e.target.value)}
           />

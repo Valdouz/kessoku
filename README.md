@@ -86,17 +86,38 @@ Comment ça marche : un petit **serveur de synchro WebSocket auto-hébergé** re
 entre les membres d'une même *room*. Il ne stocke **aucune donnée** (tout vit dans les navigateurs) et
 ne dépend d'**aucun service tiers**. Le *code de room* est un secret partagé choisi dans l'app — **jamais commité**.
 
+Avec Docker, **un seul port** est exposé (`8080`) : nginx sert l'app **et** proxifie le WebSocket
+`/sync` vers le serveur de synchro. Le client vise automatiquement le **même domaine** (`/sync`,
+`ws` en HTTP / `wss` en HTTPS) — **rien à configurer**.
+
 ```bash
-# 1) Lancer le serveur de synchro (local)
-npm run sync                       # ws://localhost:1234
-# …ou via Docker (app + synchro) :
-docker compose up -d --build       # app :8080, synchro :1234
+docker compose up -d --build       # app + collaboratif sur http://localhost:8080
+# (dev sans Docker :  npm run dev  + dans un autre terminal  npm run sync)
 ```
 
-Puis dans l'app : **Réglages → Collaboration** → renseignez votre nom + un **code de room** commun
-(et l'URL du serveur si différente) → *Se connecter*. Partagez le code de room à la régie. C'est tout.
+Puis dans l'app : **Réglages → Collaboration** → votre nom + un **code de room** commun → *Se connecter*.
+Partagez le code de room à la régie. C'est tout.
 
-> En production derrière un domaine, définissez `VITE_SYNC_URL` (ex. `wss://…/sync`) **au build** — voir [`.env.example`](.env.example).
+### Derrière un tunnel Cloudflare (HTTPS) ☁️
+
+Comme tout passe par un seul port, il suffit d'exposer l'app. Exemple `~/.cloudflared/config.yml` :
+
+```yaml
+tunnel: <ID-DU-TUNNEL>
+credentials-file: /root/.cloudflared/<ID-DU-TUNNEL>.json
+ingress:
+  - hostname: kessoku.mon-domaine.fr
+    service: http://localhost:8080      # WebSocket /sync inclus (Cloudflare gère le ws)
+  - service: http_status:404
+```
+
+```bash
+cloudflared tunnel run <NOM-DU-TUNNEL>
+```
+
+L'app est alors en `https://kessoku.mon-domaine.fr` et le collaboratif passe en `wss://…/sync`
+automatiquement (zéro réglage côté client). *(Le serveur de synchro sur un hôte séparé ? définissez
+`VITE_SYNC_URL` au build — voir [`.env.example`](.env.example).)*
 
 ## Pile technique
 

@@ -12,6 +12,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  // En dev : proxifie le WebSocket /sync vers le serveur de synchro local
+  // (npm run sync, port 1234), pour reproduire le comportement de production.
+  server: {
+    proxy: {
+      '/sync': { target: 'ws://localhost:1234', ws: true },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
