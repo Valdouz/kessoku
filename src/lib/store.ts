@@ -99,6 +99,8 @@ interface StoreState {
 
   // Synchronisation collaborative (applique des ops distantes, sans ré-émettre)
   applyRemoteOps: (ops: Op[]) => void
+  // Remplace toute la liste d'événements (adoption d'un snapshot serveur)
+  replaceEvents: (events: FestivalEvent[]) => void
 }
 
 // ── Helpers internes ─────────────────────────────────────────────────────────
@@ -318,6 +320,15 @@ export const useStore = create<StoreState>()(
               : events[0].id
             return { events, currentEventId, lastModified: nowISO() }
           }),
+
+        replaceEvents: (events) =>
+          set((s) => ({
+            events,
+            currentEventId: events.some((e) => e.id === s.currentEventId)
+              ? s.currentEventId
+              : (events[0]?.id ?? s.currentEventId),
+            lastModified: nowISO(),
+          })),
       }
     },
     {

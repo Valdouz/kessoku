@@ -1,71 +1,41 @@
 // ──────────────────────────────────────────────────────────────────────────
-// Client de collaboration temps réel.
-// - écoute le store et diffuse les changements (diffRoots -> ops) au serveur ;
-// - applique les ops distantes sans les ré-émettre (last-write-wins) ;
-// - gère la présence (qui est en ligne) et la reconnexion automatique.
-// Local-first : tout marche hors-ligne, la synchro est un bonus quand connecté.
+// Client de collaboration temps réel (authentifié).
+// - le serveur est AUTORITAIRE : à la connexion on adopte son snapshot ;
+// - ensuite on diffuse les changements locaux (diff -> ops) et on applique les
+//   ops distantes (sans écho), en last-write-wins ;
+// - présence (qui est en ligne) + reconnexion automatique.
+// La connexion exige un jeton valide (?token=) sinon le serveur refuse.
 // ──────────────────────────────────────────────────────────────────────────
 
 import { create } from 'zustand'
 import { useStore } from './store'
+import { getToken } from './auth'
 import { diffRoots, rootToOps, type Op } from './syncProtocol'
-import type { RootData } from './types'
+import type { FestivalEvent, RootData } from './types'
 
 export type CollabStatus = 'off' | 'connecting' | 'online' | 'error'
 export interface CollabUser {
   id: string
   name: string
 }
-export interface CollabConfig {
-  url: string
-  room: string
-  name: string
-}
 
-const CONFIG_KEY = 'kessoku.collab'
+const ROOM = (import.meta.env.VITE_SYNC_ROOM as string | undefined) || 'main'
 
-function defaultWsUrl(): string {
+function syncUrl(): string {
   const env = import.meta.env.VITE_SYNC_URL as string | undefined
   if (env) return env
   if (typeof location === 'undefined') return 'ws://localhost:1234'
-  // Par défaut : même origine, chemin /sync (proxifié vers le serveur de synchro).
-  // => marche en HTTP comme en HTTPS (wss), y compris derrière un tunnel Cloudflare.
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   return `${proto}://${location.host}/sync`
 }
 
-function loadConfig(): CollabConfig & { autoConnect: boolean } {
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY)
-    if (raw) {
-      const c = JSON.parse(raw)
-      return {
-        url: c.url || defaultWsUrl(),
-        room: c.room || '',
-        name: c.name || '',
-        autoConnect: Boolean(c.autoConnect),
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return { url: defaultWsUrl(), room: '', name: '', autoConnect: false }
-}
-
-function persistConfig(cfg: CollabConfig, autoConnect: boolean) {
-  try {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ ...cfg, autoConnect }))
-  } catch {
-    /* ignore */
-  }
-}
-
-// État interne du transport (hors React).
+// État transport (hors React)
 let ws: WebSocket | null = null
 let applyingRemote = false
 let lastSynced: RootData = { events: [], currentEventId: '' }
 let manualClose = false
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let failures = 0
 let subscribed = false
 
 const getRoot = (): RootData => {
@@ -73,14 +43,19 @@ const getRoot = (): RootData => {
   return { events: s.events, currentEventId: s.currentEventId }
 }
 
-function applyRemote(ops: Op[]) {
+function applyRemoteOps(ops: Op[]) {
   applyingRemote = true
   useStore.getState().applyRemoteOps(ops)
   applyingRemote = false
   lastSynced = getRoot()
 }
+function adoptSnapshot(events: FestivalEvent[]) {
+  applyingRemote = true
+  useStore.getState().replaceEvents(events)
+  applyingRemote = false
+  lastSynced = getRoot()
+}
 
-// S'abonne une seule fois aux changements du store pour diffuser les ops.
 function ensureSubscription() {
   if (subscribed) return
   subscribed = true
@@ -93,41 +68,33 @@ function ensureSubscription() {
     const ops = diffRoots(lastSynced, next)
     if (ops.length === 0) return
     lastSynced = next
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ t: 'ops', ops }))
-    }
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'ops', ops }))
   })
 }
 
 interface CollabState {
   status: CollabStatus
   users: CollabUser[]
-  config: CollabConfig
   error: string
-  connect: (cfg: CollabConfig) => void
+  connect: () => void
   disconnect: () => void
 }
 
-const initial = loadConfig()
-
-export const useCollab = create<CollabState>((set, get) => ({
+export const useCollab = create<CollabState>(() => ({
   status: 'off',
   users: [],
-  config: { url: initial.url, room: initial.room, name: initial.name },
   error: '',
-
-  connect: (cfg) => {
-    if (!cfg.room.trim()) {
-      set({ status: 'error', error: 'Indique un code de room.' })
+  connect: () => {
+    if (!getToken()) {
+      useCollab.setState({ status: 'error', error: 'Connecte-toi pour activer la synchro.' })
       return
     }
     ensureSubscription()
     manualClose = false
-    persistConfig(cfg, true)
-    set({ config: cfg, status: 'connecting', error: '', users: [] })
-    openSocket(cfg)
+    failures = 0
+    useCollab.setState({ status: 'connecting', error: '', users: [] })
+    openSocket()
   },
-
   disconnect: () => {
     manualClose = true
     if (reconnectTimer) {
@@ -140,20 +107,23 @@ export const useCollab = create<CollabState>((set, get) => ({
       /* ignore */
     }
     ws = null
-    persistConfig(get().config, false)
-    set({ status: 'off', users: [] })
+    useCollab.setState({ status: 'off', users: [] })
   },
 }))
 
-function openSocket(cfg: CollabConfig) {
+function openSocket() {
+  const token = getToken()
+  if (!token) return
   try {
     ws?.close()
   } catch {
     /* ignore */
   }
+  const base = syncUrl()
+  const url = `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
   let socket: WebSocket
   try {
-    socket = new WebSocket(cfg.url)
+    socket = new WebSocket(url)
   } catch {
     useCollab.setState({ status: 'error', error: 'URL de serveur invalide.' })
     return
@@ -161,15 +131,14 @@ function openSocket(cfg: CollabConfig) {
   ws = socket
 
   socket.onopen = () => {
-    socket.send(JSON.stringify({ t: 'join', room: cfg.room.trim(), name: cfg.name.trim() || 'Anonyme' }))
-    // Partage notre état complet pour converger avec les pairs déjà présents.
-    socket.send(JSON.stringify({ t: 'ops', ops: rootToOps(getRoot()) }))
+    failures = 0
+    socket.send(JSON.stringify({ t: 'join', room: ROOM }))
     lastSynced = getRoot()
     useCollab.setState({ status: 'online', error: '' })
   }
 
   socket.onmessage = (ev) => {
-    let msg: { t?: string; users?: CollabUser[]; ops?: Op[]; for?: string }
+    let msg: { t?: string; users?: CollabUser[]; ops?: Op[]; root?: RootData; empty?: boolean }
     try {
       msg = JSON.parse(ev.data)
     } catch {
@@ -179,12 +148,20 @@ function openSocket(cfg: CollabConfig) {
       case 'presence':
         useCollab.setState({ users: msg.users ?? [] })
         break
-      case 'req-snapshot':
-        socket.send(JSON.stringify({ t: 'snapshot', for: msg.for, ops: rootToOps(getRoot()) }))
-        break
       case 'snapshot':
+        if (msg.empty) {
+          // Serveur vierge : on l'amorce avec notre état local.
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ t: 'ops', ops: rootToOps(getRoot()) }))
+          }
+          lastSynced = getRoot()
+        } else if (msg.root && Array.isArray(msg.root.events)) {
+          // Le serveur fait foi : on adopte ses données.
+          adoptSnapshot(msg.root.events)
+        }
+        break
       case 'ops':
-        if (Array.isArray(msg.ops)) applyRemote(msg.ops)
+        if (Array.isArray(msg.ops)) applyRemoteOps(msg.ops)
         break
     }
   }
@@ -195,16 +172,23 @@ function openSocket(cfg: CollabConfig) {
 
   socket.onclose = () => {
     if (manualClose) return
+    failures++
+    if (failures > 6 || !getToken()) {
+      useCollab.setState({ status: 'error', error: 'Synchro interrompue. Recharge ou reconnecte-toi.' })
+      return
+    }
     useCollab.setState({ status: 'connecting' })
     if (reconnectTimer) clearTimeout(reconnectTimer)
-    reconnectTimer = setTimeout(() => openSocket(useCollab.getState().config), 2500)
+    reconnectTimer = setTimeout(openSocket, 2500)
   }
 }
 
-/** Auto-connexion au démarrage si une config a été enregistrée. */
+/** Connexion automatique si l'utilisateur est authentifié. */
 export function initCollab() {
-  const c = loadConfig()
-  if (c.autoConnect && c.room) {
-    useCollab.getState().connect({ url: c.url, room: c.room, name: c.name })
-  }
+  if (getToken()) useCollab.getState().connect()
+}
+
+/** Coupe la synchro (à la déconnexion). */
+export function stopCollab() {
+  useCollab.getState().disconnect()
 }

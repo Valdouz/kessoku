@@ -1,17 +1,27 @@
 import { PageHeader } from '@/components/ui'
+import { AccountSection } from '@/features/auth/AccountSection'
+import { UsersSection } from '@/features/auth/UsersSection'
 import { EventsSection } from '@/features/evenements/EventsSection'
 import { CollabSection } from '@/features/collab/CollabSection'
+import { useAuth } from '@/lib/auth'
 import { FestivalForm } from './FestivalForm'
 import { DataSection } from './DataSection'
 import { AboutSection } from './AboutSection'
 
 export function ReglagesPage() {
+  const isAdmin = useAuth((s) => s.user?.role === 'admin')
+
   return (
     <div>
       <PageHeader
         title="Réglages"
-        subtitle="Événements, infos de l'événement courant, sauvegarde des données et à propos."
+        subtitle="Compte, comptes de l'équipe, événements, données et collaboration."
       />
+
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <AccountSection />
+        {isAdmin && <UsersSection />}
+      </div>
 
       <div className="mb-5">
         <EventsSection />
