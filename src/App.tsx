@@ -12,6 +12,7 @@ import { InventairePage } from './features/inventaire/InventairePage'
 import { ChecklistPage } from './features/checklist/ChecklistPage'
 import { EquipePage } from './features/equipe/EquipePage'
 import { OrganigrammePage } from './features/organigramme/OrganigrammePage'
+import { DocumentsPage } from './features/documents/DocumentsPage'
 import { ReglagesPage } from './features/reglages/ReglagesPage'
 
 function FullScreen({ children }: { children: React.ReactNode }) {
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/checklist" element={<ChecklistPage />} />
           <Route path="/equipe" element={<EquipePage />} />
           <Route path="/organigramme" element={<OrganigrammePage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/reglages" element={<ReglagesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

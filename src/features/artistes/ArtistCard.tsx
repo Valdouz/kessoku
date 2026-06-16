@@ -38,7 +38,7 @@ export function ArtistCard({ artist, onEdit, onDelete, onStatusChange }: ArtistC
               </Badge>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="no-print flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -148,7 +148,7 @@ export function ArtistCard({ artist, onEdit, onDelete, onStatusChange }: ArtistC
         )}
 
         {/* Changement rapide de statut (poussé en bas de carte) */}
-        <div className="mt-auto flex items-center gap-2 border-t border-night-700 pt-3">
+        <div className="no-print mt-auto flex items-center gap-2 border-t border-night-700 pt-3">
           <label
             htmlFor={`status-${artist.id}`}
             className="text-xs font-medium uppercase tracking-wide text-slate-500"

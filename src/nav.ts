@@ -1,6 +1,7 @@
 import {
   CalendarClock,
   CheckSquare,
+  FileText,
   Guitar,
   Mic2,
   Network,
@@ -26,5 +27,6 @@ export const NAV: NavItem[] = [
   { path: '/checklist', label: 'Checklist', icon: CheckSquare, primary: true },
   { path: '/equipe', label: 'Équipe', icon: Users },
   { path: '/organigramme', label: 'Organigramme', icon: Network },
+  { path: '/documents', label: 'Documents', icon: FileText },
   { path: '/reglages', label: 'Réglages', icon: Settings },
 ]

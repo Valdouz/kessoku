@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Mic2, Plus, Search } from 'lucide-react'
+import { Mic2, Plus, Printer, Search } from 'lucide-react'
 import {
   PageHeader,
   Button,
@@ -9,8 +9,9 @@ import {
   EmptyState,
   ConfirmDialog,
 } from '@/components/ui'
-import { useArtists, useStore } from '@/lib/store'
+import { useArtists, useFestival, useStore } from '@/lib/store'
 import { ARTIST_KINDS, ARTIST_STATUS, toOptions } from '@/lib/labels'
+import { formatDateFR } from '@/lib/time'
 import type { Artist, ArtistKind, ArtistStatus } from '@/lib/types'
 import { ArtistCard } from './ArtistCard'
 import { ArtistForm } from './ArtistForm'
@@ -22,6 +23,7 @@ const STATUS_KEYS = Object.keys(ARTIST_STATUS) as ArtistStatus[]
 
 export function ArtistesPage() {
   const artists = useArtists()
+  const festival = useFestival()
   const addArtist = useStore((s) => s.addArtist)
   const updateArtist = useStore((s) => s.updateArtist)
   const removeArtist = useStore((s) => s.removeArtist)
@@ -82,14 +84,32 @@ export function ArtistesPage() {
 
   return (
     <div>
+      {/* En-tête imprimé : identifie la liste. */}
+      <div className="mb-4 hidden border-b border-night-700 pb-3 print:block">
+        <h1 className="font-display text-2xl font-bold text-white">
+          Artistes — {festival.name} {festival.edition}
+        </h1>
+        <p className="mt-0.5 text-sm text-slate-400">
+          {festival.date ? formatDateFR(festival.date) : ''}
+        </p>
+      </div>
+
       <PageHeader
         title="Artistes"
         subtitle="Gestion des artistes, groupes et de leurs besoins techniques."
         actions={
-          <Button onClick={openCreate}>
-            <Plus size={18} />
-            Ajouter un artiste
-          </Button>
+          <div className="no-print flex flex-wrap items-center gap-2">
+            {hasArtists && (
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer size={18} />
+                Imprimer
+              </Button>
+            )}
+            <Button onClick={openCreate}>
+              <Plus size={18} />
+              Ajouter un artiste
+            </Button>
+          </div>
         }
       />
 
