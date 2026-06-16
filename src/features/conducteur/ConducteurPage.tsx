@@ -17,7 +17,7 @@ import {
   PageHeader,
 } from '@/components/ui'
 import { useArtists, useFestival, useSlots, useStore } from '@/lib/store'
-import { addMinutes, diffMinutes, formatDuration, timeToMinutes } from '@/lib/time'
+import { formatDuration, minutesToTime, timeToMinutes } from '@/lib/time'
 import type { Slot } from '@/lib/types'
 import { SlotForm } from './SlotForm'
 import { SlotRow, type SlotGap } from './SlotRow'
@@ -79,19 +79,29 @@ export function ConducteurPage() {
     () => slots.reduce((sum, s) => sum + (Number.isFinite(s.durationMin) ? s.durationMin : 0), 0),
     [slots],
   )
-  const computedEnd = useMemo(
-    () => addMinutes(festival.startTime, totalDuration),
-    [festival.startTime, totalDuration],
-  )
-  // On compare des durées cumulées non wrappées (diffMinutes gère le passage de
-  // minuit) plutôt que des heures wrappées modulo 1440, pour détecter aussi les
-  // dépassements dont la fin calculée franchit minuit.
-  const plannedDuration = useMemo(
-    () => diffMinutes(festival.startTime, festival.endTime),
-    [festival.startTime, festival.endTime],
-  )
-  const overshootMin = Math.max(0, totalDuration - plannedDuration)
-  const isOvershoot = totalDuration > plannedDuration
+  // Heure de fin RÉELLE = fin du dernier créneau (début + durée), et non la somme
+  // des durées (qui ignore l'heure de début réelle et les éventuels trous).
+  const lastEndMin = useMemo(() => {
+    let max = NaN
+    for (const s of slots) {
+      const start = timeToMinutes(s.startTime)
+      if (Number.isNaN(start)) continue
+      const end = start + (Number.isFinite(s.durationMin) ? s.durationMin : 0)
+      if (Number.isNaN(max) || end > max) max = end
+    }
+    return max
+  }, [slots])
+  const computedEnd = Number.isNaN(lastEndMin) ? '—' : minutesToTime(lastEndMin)
+  // Dépassement : on compare l'HEURE DE FIN réelle à l'heure de fin prévue.
+  const overshootMin = useMemo(() => {
+    if (Number.isNaN(lastEndMin)) return 0
+    const startMin = timeToMinutes(festival.startTime)
+    let endMin = timeToMinutes(festival.endTime)
+    if (Number.isNaN(endMin)) return 0
+    if (!Number.isNaN(startMin) && endMin < startMin) endMin += 1440 // fin après minuit
+    return Math.max(0, lastEndMin - endMin)
+  }, [festival.startTime, festival.endTime, lastEndMin])
+  const isOvershoot = overshootMin > 0
   const anomalyCount = gaps.size
 
   const openCreate = () => {
