@@ -59,17 +59,84 @@
   .card {
     @apply rounded-2xl border border-night-700 bg-night-850/80 backdrop-blur;
   }
+}
 
-  /* impression : conducteur & checklist sur papier */
-  @media print {
-    .no-print {
-      display: none !important;
-    }
-    body {
-      @apply bg-white text-black;
-    }
-    .card {
-      @apply border-slate-300 bg-white;
-    }
+/* ──────────────────────────────────────────────────────────────────────────
+   Impression (hors @layer pour gagner la cascade) — l'app est en thème sombre :
+   les navigateurs n'impriment pas les fonds, donc on force un rendu clair lisible,
+   on masque l'habillage et on réinitialise la mise en page.
+   ────────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  /* Texte noir, fonds/ombres supprimés : tout devient lisible sur papier blanc. */
+  *,
+  *::before,
+  *::after {
+    color: #111 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html,
+  body,
+  #root {
+    background: #fff !important;
+    height: auto !important;
+  }
+
+  /* Masquer la navigation, l'en-tête, le décor et tous les contrôles. */
+  .no-print,
+  aside,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* Réinitialiser la mise en page (décalage sidebar, paddings écran, max-width). */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  main > div {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  /* Cartes & encadrés : bordures nettes, jamais coupés en plein milieu. */
+  .card,
+  [class*='border-night'],
+  [class*='border-dashed'] {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    break-inside: avoid;
+  }
+
+  /* Badges / pastilles : une bordure pour rester distinguables en noir & blanc. */
+  span[class*='rounded-full'] {
+    border: 1px solid #9ca3af !important;
+    padding: 0 6px !important;
+  }
+
+  a {
+    text-decoration: none !important;
+  }
+
+  /* Éviter les coupures disgracieuses. */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  li,
+  tr {
+    break-inside: avoid;
   }
 }
