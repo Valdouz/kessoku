@@ -19,6 +19,7 @@ db.exec(`
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'member',
     token_version INTEGER NOT NULL DEFAULT 0,
+    event_access TEXT NOT NULL DEFAULT '*',
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS workspaces (
@@ -27,9 +28,14 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
 `)
-// Migration idempotente pour les bases créées avant l'ajout de token_version.
+// Migrations idempotentes pour les bases créées avant ces colonnes.
 try {
   db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')
+} catch {
+  /* colonne déjà présente */
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN event_access TEXT NOT NULL DEFAULT '*'")
 } catch {
   /* colonne déjà présente */
 }
@@ -47,18 +53,61 @@ export function getUserById(id) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id)
 }
 export function listUsers() {
-  return db.prepare('SELECT id, username, role, created_at FROM users ORDER BY username').all()
+  return db.prepare('SELECT id, username, role, event_access, created_at FROM users ORDER BY username').all()
 }
-export function createUser(username, password, role = 'member') {
+export function createUser(username, password, role = 'member', eventAccess = '*') {
   const hash = bcrypt.hashSync(password, BCRYPT_ROUNDS)
   const created = new Date().toISOString()
+  const access = normalizeAccess(eventAccess)
   const info = db
-    .prepare('INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)')
-    .run(username, hash, role, created)
-  return { id: info.lastInsertRowid, username, role, created_at: created }
+    .prepare(
+      'INSERT INTO users (username, password_hash, role, event_access, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(username, hash, role, access, created)
+  return { id: info.lastInsertRowid, username, role, event_access: access, created_at: created }
+}
+
+/** Définit le périmètre d'accès d'un compte : '*' (tout) ou liste d'ids d'événements. */
+export function setEventAccess(id, eventAccess) {
+  db.prepare('UPDATE users SET event_access = ? WHERE id = ?').run(normalizeAccess(eventAccess), id)
+}
+/** Ajoute un événement au périmètre d'un compte restreint (ex. il vient de le créer). */
+export function grantEventAccess(id, eventId) {
+  const u = getUserById(id)
+  if (!u || u.event_access === '*') return
+  let list = []
+  try {
+    list = JSON.parse(u.event_access)
+  } catch {
+    list = []
+  }
+  if (!Array.isArray(list)) list = []
+  if (!list.includes(eventId)) {
+    list.push(eventId)
+    setEventAccess(id, JSON.stringify(list))
+  }
+}
+/** Normalise une valeur d'accès en chaîne stockable. */
+function normalizeAccess(value) {
+  if (value === '*' || value == null) return '*'
+  if (Array.isArray(value)) return JSON.stringify(value.filter((x) => typeof x === 'string'))
+  if (typeof value === 'string') {
+    if (value === '*') return '*'
+    try {
+      const arr = JSON.parse(value)
+      if (Array.isArray(arr)) return JSON.stringify(arr.filter((x) => typeof x === 'string'))
+    } catch {
+      /* ignore */
+    }
+  }
+  return '*'
 }
 export function deleteUser(id) {
   db.prepare('DELETE FROM users WHERE id = ?').run(id)
+}
+export function setRole(id, role) {
+  const r = role === 'admin' ? 'admin' : 'member'
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(r, id)
 }
 export function countAdmins() {
   return db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'").get().c

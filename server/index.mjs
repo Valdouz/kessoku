@@ -10,6 +10,7 @@ import { WebSocketServer } from 'ws'
 import {
   seedAdmin, getUserByUsername, getUserById, listUsers, createUser, deleteUser,
   countAdmins, setPassword, verifyPassword, getWorkspace, saveWorkspace,
+  setEventAccess, grantEventAccess, setRole,
 } from './db.mjs'
 import { signToken, verifyToken } from './auth.mjs'
 import { applyOpsToEvents } from './sync.mjs'
@@ -46,6 +47,24 @@ function authMiddleware(req, res, next) {
 function adminOnly(req, res, next) {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Réservé à l’administrateur.' })
   next()
+}
+
+// Périmètre d'accès d'un utilisateur : null = tous les événements (admin ou '*'),
+// sinon un Set d'ids d'événements autorisés.
+function accessSet(user) {
+  if (!user || user.role === 'admin' || user.event_access === '*') return null
+  try {
+    const arr = JSON.parse(user.event_access)
+    return new Set(Array.isArray(arr) ? arr : [])
+  } catch {
+    return new Set()
+  }
+}
+function filterEvents(events, allowed) {
+  return allowed ? events.filter((e) => allowed.has(e.id)) : events
+}
+function filterOps(ops, allowed) {
+  return allowed ? ops.filter((op) => op && typeof op === 'object' && allowed.has(op.eventId)) : ops
 }
 
 // Limiteur anti-bruteforce : par IP (backstop) ET par identifiant ciblé.
@@ -111,8 +130,34 @@ app.post('/api/users', authMiddleware, adminOnly, (req, res) => {
     return res.status(400).json({ error: 'Nom requis et mot de passe d’au moins 6 caractères.' })
   }
   if (getUserByUsername(username)) return res.status(409).json({ error: 'Ce nom est déjà pris.' })
-  const user = createUser(username, password, role)
+  const eventAccess = (req.body || {}).eventAccess // '*' ou tableau d'ids
+  const user = createUser(username, password, role, eventAccess)
   res.status(201).json({ user })
+})
+
+// Modifier le rôle et/ou le périmètre d'accès d'un compte (admin).
+app.patch('/api/users/:id', authMiddleware, adminOnly, (req, res) => {
+  const id = Number(req.params.id)
+  const target = getUserById(id)
+  if (!target) return res.status(404).json({ error: 'Introuvable.' })
+  const body = req.body || {}
+  // Réinitialisation du mot de passe par l'admin (révoque les sessions existantes
+  // via token_version incrémenté dans setPassword).
+  if (body.password !== undefined) {
+    if (typeof body.password !== 'string' || body.password.length < 6) {
+      return res.status(400).json({ error: 'Mot de passe d’au moins 6 caractères.' })
+    }
+    setPassword(id, body.password)
+  }
+  if (body.role === 'admin' || body.role === 'member') {
+    if (target.role === 'admin' && body.role !== 'admin' && countAdmins() <= 1) {
+      return res.status(400).json({ error: 'Impossible de rétrograder le dernier administrateur.' })
+    }
+    setRole(id, body.role)
+  }
+  if (body.eventAccess !== undefined) setEventAccess(id, body.eventAccess)
+  closeUserSockets(id) // applique périmètre/révocation immédiatement (le client se reconnecte/déconnecte)
+  res.json({ ok: true })
 })
 
 app.delete('/api/users/:id', authMiddleware, adminOnly, (req, res) => {
@@ -175,8 +220,9 @@ server.on('upgrade', (req, socket, head) => {
     return
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
-    // Identité/rôle réconciliés depuis la base, pas depuis le token.
-    ws.user = { id: u.id, username: u.username, role: u.role }
+    // Identité/rôle/accès réconciliés depuis la base, pas depuis le token.
+    ws.user = { id: u.id, username: u.username, role: u.role, event_access: u.event_access }
+    ws.allowed = accessSet(ws.user) // null = tout ; sinon Set d'ids autorisés
     wss.emit('connection', ws, req)
   })
 })
@@ -232,7 +278,10 @@ wss.on('connection', (ws) => {
       rooms.get(room).set(id, { id, ws, name: ws.user.username })
       broadcastPresence(room)
       const root = getRoot(room)
-      safeSend(ws, JSON.stringify({ t: 'snapshot', root, empty: root.events.length === 0 }))
+      const events = filterEvents(root.events, ws.allowed)
+      // Seul un compte « tout accès » amorce un serveur vierge (un compte restreint ne pousse jamais tout).
+      const canSeed = root.events.length === 0 && ws.allowed === null
+      safeSend(ws, JSON.stringify({ t: 'snapshot', root: { events }, empty: canSeed }))
       return
     }
 
@@ -241,11 +290,35 @@ wss.on('connection', (ws) => {
     if (msg.t === 'ops' && Array.isArray(msg.ops)) {
       try {
         const root = getRoot(room)
-        root.events = applyOpsToEvents(root.events, msg.ops)
+        // Auto-accès : un compte restreint qui CRÉE un nouvel événement en garde l'accès
+        // (mais ne peut pas s'octroyer l'accès à un événement EXISTANT).
+        if (ws.allowed) {
+          for (const op of msg.ops) {
+            if (
+              op && op.coll === 'event' && op.kind === 'upsert' &&
+              typeof op.eventId === 'string' &&
+              !ws.allowed.has(op.eventId) &&
+              !root.events.some((e) => e.id === op.eventId)
+            ) {
+              ws.allowed.add(op.eventId)
+              grantEventAccess(ws.user.id, op.eventId)
+            }
+          }
+        }
+        // N'applique que les ops autorisées pour cet utilisateur.
+        const incoming = filterOps(msg.ops, ws.allowed)
+        if (incoming.length === 0) return
+        root.events = applyOpsToEvents(root.events, incoming)
         schedulePersist(room)
-        const payload = JSON.stringify({ t: 'ops', ops: msg.ops })
+        // Diffuse à chaque autre client UNIQUEMENT ce qu'il a le droit de voir.
         const clients = rooms.get(room)
-        if (clients) for (const [cid, c] of clients) if (cid !== id) safeSend(c.ws, payload)
+        if (clients) {
+          for (const [cid, c] of clients) {
+            if (cid === id) continue
+            const visible = filterOps(incoming, c.ws.allowed)
+            if (visible.length) safeSend(c.ws, JSON.stringify({ t: 'ops', ops: visible }))
+          }
+        }
       } catch (e) {
         console.error('[kessoku] op rejetée :', e?.message || e)
       }
