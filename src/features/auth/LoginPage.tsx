@@ -48,6 +48,9 @@ export function LoginPage() {
               id="login-user"
               value={username}
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               autoFocus
               onChange={(e) => setUsername(e.target.value)}
             />

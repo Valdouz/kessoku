@@ -47,7 +47,8 @@ export function countUsers() {
   return db.prepare('SELECT COUNT(*) AS c FROM users').get().c
 }
 export function getUserByUsername(username) {
-  return db.prepare('SELECT * FROM users WHERE username = ?').get(username)
+  // Insensible à la casse : « Admin » (autocapitalisation Safari) trouve « admin ».
+  return db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username)
 }
 export function getUserById(id) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id)
