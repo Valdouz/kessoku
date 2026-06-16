@@ -115,8 +115,8 @@ export function ArtistesPage() {
 
       {hasArtists && (
         <>
-          {/* Barre d'outils : recherche + filtres */}
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* Barre d'outils : recherche + filtres (masquée à l'impression) */}
+          <div className="no-print mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search
                 size={16}
