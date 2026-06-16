@@ -1,0 +1,6 @@
+{
+  "//": "Tailwind utilise @tailwind / @apply : on désactive l'avertissement 'unknown at-rule' du validateur CSS intégré de VS Code.",
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore"
+}
