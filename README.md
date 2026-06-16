@@ -64,6 +64,15 @@ npm run preview  # prévisualise le build
 Le compte admin n'est créé qu'au **premier** démarrage (base vide). Les données (comptes + festival)
 vivent dans le volume Docker `kessoku-data` (SQLite) — pense à le sauvegarder. Port : `docker-compose.yml`.
 
+**Mot de passe admin oublié ?** Un utilitaire en ligne de commande le réinitialise (il n'est pas exposé
+sur le réseau ; il faut un accès au serveur) :
+
+```bash
+# en prod (dans le conteneur) :
+docker compose exec -e NEW_PASSWORD=monNouveauMdp api node reset-admin.mjs admin
+# en local : NEW_PASSWORD=monNouveauMdp npm run reset-admin admin
+```
+
 ### ⚙️ PM2 (sur un VPS, sans Docker)
 
 ```bash
