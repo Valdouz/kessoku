@@ -43,3 +43,6 @@ pnpm-debug.log*
 # Données locales du backend (SQLite, secret JWT) — jamais sur git
 data/
 server/data/
+
+# Config locale de l'outil
+.claude/
