@@ -17,7 +17,7 @@ import {
   PageHeader,
 } from '@/components/ui'
 import { useArtists, useFestival, useSlots, useStore } from '@/lib/store'
-import { formatDuration, minutesToTime, timeToMinutes } from '@/lib/time'
+import { formatDateFR, formatDuration, minutesToTime, timeToMinutes } from '@/lib/time'
 import type { Slot } from '@/lib/types'
 import { SlotForm } from './SlotForm'
 import { SlotRow, type SlotGap } from './SlotRow'
@@ -161,6 +161,18 @@ export function ConducteurPage() {
 
   return (
     <div>
+      {/* En-tête visible uniquement à l'impression : identifie la feuille de route. */}
+      <div className="mb-4 hidden border-b border-night-700 pb-3 print:block">
+        <h1 className="font-display text-2xl font-bold text-white">
+          {festival.name} {festival.edition}
+        </h1>
+        <p className="mt-0.5 text-sm text-slate-400">
+          {[festival.date ? formatDateFR(festival.date) : '', festival.venue, festival.city]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      </div>
+
       <PageHeader
         title="Conducteur"
         subtitle="Déroulé minute par minute du jour J"
