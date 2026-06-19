@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Printer, Users, Handshake, PhoneCall } from 'lucide-react'
 import { Badge, Button, EmptyState, PageHeader } from '@/components/ui'
 import { useFestival, useMembers } from '@/lib/store'
-import { MEMBER_ROLES } from '@/lib/labels'
+import { MEMBER_ROLES, memberRoles } from '@/lib/labels'
 import type { Member, MemberRole } from '@/lib/types'
 
 // Ordre d'affichage des pôles opérationnels dans l'organigramme.
@@ -22,17 +22,21 @@ interface Pole {
   members: Member[]
 }
 
-/** Petite carte d'une personne (nom + organisation + rôle). */
+/** Petite carte d'une personne (nom + organisation + rôles). */
 function MemberNode({ member, showRole = false }: { member: Member; showRole?: boolean }) {
-  const def = MEMBER_ROLES[member.role]
+  const roles = memberRoles(member)
   return (
     <div className="min-w-[150px] rounded-xl border border-night-700 bg-night-850 px-3 py-2 text-center shadow-sm">
       <div className="font-semibold text-white">{member.name || 'Sans nom'}</div>
       {member.org && <div className="text-xs text-slate-400">{member.org}</div>}
-      {showRole && (
-        <Badge tone={def.badge} className="mt-1">
-          {def.label}
-        </Badge>
+      {showRole && roles.length > 0 && (
+        <div className="mt-1 flex flex-wrap justify-center gap-1">
+          {roles.map((r) => (
+            <Badge key={r} tone={MEMBER_ROLES[r].badge}>
+              {MEMBER_ROLES[r].label}
+            </Badge>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -48,17 +52,18 @@ export function OrganigrammePage() {
   const members = useMembers()
 
   const { coordination, poles, partners, externals } = useMemo(() => {
-    const partnerList = members.filter((m) => m.isPartner || m.role === 'partenaire')
+    const has = (m: Member, r: MemberRole) => memberRoles(m).includes(r)
+    const partnerList = members.filter((m) => m.isPartner || has(m, 'partenaire'))
     const partnerIds = new Set(partnerList.map((m) => m.id))
-    const externalList = members.filter((m) => !partnerIds.has(m.id) && m.role === 'contact_externe')
+    const externalList = members.filter((m) => !partnerIds.has(m.id) && has(m, 'contact_externe'))
     const externalIds = new Set(externalList.map((m) => m.id))
     const internal = members.filter((m) => !partnerIds.has(m.id) && !externalIds.has(m.id))
 
-    const coord = internal.filter((m) => m.role === 'coordination')
-    const rest = internal.filter((m) => m.role !== 'coordination')
+    // Un membre apparaît dans CHAQUE pôle correspondant à ses rôles (ex. son + coordination).
+    const coord = internal.filter((m) => has(m, 'coordination'))
     const poleList: Pole[] = POLE_ORDER.map((role) => ({
       role,
-      members: rest.filter((m) => m.role === role),
+      members: internal.filter((m) => has(m, role)),
     })).filter((p) => p.members.length > 0)
 
     return { coordination: coord, poles: poleList, partners: partnerList, externals: externalList }

@@ -11,6 +11,7 @@ import { ArtistesPage } from './features/artistes/ArtistesPage'
 import { InventairePage } from './features/inventaire/InventairePage'
 import { ChecklistPage } from './features/checklist/ChecklistPage'
 import { EquipePage } from './features/equipe/EquipePage'
+import { VolunteersPage } from './features/benevoles/VolunteersPage'
 import { OrganigrammePage } from './features/organigramme/OrganigrammePage'
 import { DocumentsPage } from './features/documents/DocumentsPage'
 import { ReglagesPage } from './features/reglages/ReglagesPage'
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/materiel" element={<InventairePage />} />
           <Route path="/checklist" element={<ChecklistPage />} />
           <Route path="/equipe" element={<EquipePage />} />
+          <Route path="/benevoles" element={<VolunteersPage />} />
           <Route path="/organigramme" element={<OrganigrammePage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/reglages" element={<ReglagesPage />} />

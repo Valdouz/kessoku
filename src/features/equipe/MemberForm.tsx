@@ -1,13 +1,13 @@
 import { useState, type ChangeEvent } from 'react'
-import { Field, Input, Textarea, Select } from '@/components/ui'
-import { MEMBER_ROLES, toOptions } from '@/lib/labels'
+import { Field, Input, Textarea } from '@/components/ui'
+import { MEMBER_ROLES, memberRoles, toOptions } from '@/lib/labels'
 import type { Member, MemberRole } from '@/lib/types'
 
 const ROLE_OPTIONS = toOptions(MEMBER_ROLES)
 
 export interface MemberFormValues {
   name: string
-  role: MemberRole
+  roles: MemberRole[]
   org: string
   phone: string
   email: string
@@ -19,7 +19,7 @@ export interface MemberFormValues {
 export function toFormValues(m: Member): MemberFormValues {
   return {
     name: m.name,
-    role: m.role,
+    roles: memberRoles(m),
     org: m.org,
     phone: m.phone,
     email: m.email,
@@ -60,16 +60,30 @@ export function MemberForm({ values, onChange }: MemberFormProps) {
         />
       </Field>
 
-      <Field label="Rôle" htmlFor={ids.role}>
-        <Select
-          id={ids.role}
-          options={ROLE_OPTIONS}
-          value={values.role}
-          onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-            onChange({ role: e.target.value as MemberRole })
-          }
-        />
-      </Field>
+      <div className="sm:col-span-2">
+        <span className="field-label">Rôles (plusieurs possibles)</span>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+          {ROLE_OPTIONS.map((opt) => {
+            const checked = values.roles.includes(opt.value)
+            return (
+              <label key={opt.value} className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    const set = new Set(values.roles)
+                    if (e.target.checked) set.add(opt.value)
+                    else set.delete(opt.value)
+                    onChange({ roles: [...set] })
+                  }}
+                  className="h-4 w-4 rounded border-night-600 bg-night-850 accent-kessoku-500"
+                />
+                {opt.label}
+              </label>
+            )
+          })}
+        </div>
+      </div>
 
       <Field label="Organisation" htmlFor={ids.org} hint="Association, Mairie, Partenaire…">
         <Input

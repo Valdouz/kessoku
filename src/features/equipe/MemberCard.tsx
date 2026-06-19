@@ -1,6 +1,6 @@
 import { Mail, Phone, Pencil, Trash2, Building2, Handshake } from 'lucide-react'
 import { Card, CardBody, Badge, Button, cn } from '@/components/ui'
-import { MEMBER_ROLES } from '@/lib/labels'
+import { MEMBER_ROLES, memberRoles } from '@/lib/labels'
 import type { Member } from '@/lib/types'
 
 /** Nettoie un numéro pour un lien tel: (garde + et chiffres). */
@@ -22,7 +22,7 @@ interface MemberCardProps {
 }
 
 export function MemberCard({ member, onEdit, onDelete }: MemberCardProps) {
-  const role = MEMBER_ROLES[member.role]
+  const roles = memberRoles(member)
   const hasPhone = member.phone.trim().length > 0
   const hasEmail = member.email.trim().length > 0
 
@@ -62,7 +62,11 @@ export function MemberCard({ member, onEdit, onDelete }: MemberCardProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone={role.badge}>{role.label}</Badge>
+          {roles.map((r) => (
+            <Badge key={r} tone={MEMBER_ROLES[r].badge}>
+              {MEMBER_ROLES[r].label}
+            </Badge>
+          ))}
           {member.isPartner && (
             <Badge tone="bg-indigo-500/15 text-indigo-300">
               <Handshake size={11} />

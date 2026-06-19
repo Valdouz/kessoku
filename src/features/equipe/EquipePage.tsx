@@ -11,7 +11,7 @@ import {
   Select,
 } from '@/components/ui'
 import { useMembers, useStore } from '@/lib/store'
-import { MEMBER_ROLES, toOptions } from '@/lib/labels'
+import { MEMBER_ROLES, memberRoles, toOptions } from '@/lib/labels'
 import { makeMember } from '@/data/defaults'
 import type { Member, MemberRole } from '@/lib/types'
 import { MemberCard } from './MemberCard'
@@ -27,7 +27,7 @@ type Editing =
 type Group = 'equipe' | 'partenaires' | 'externes'
 
 function groupOf(m: Member): Group {
-  if (m.role === 'contact_externe') return 'externes'
+  if (memberRoles(m).includes('contact_externe')) return 'externes'
   if (m.isPartner) return 'partenaires'
   return 'equipe'
 }
@@ -54,7 +54,7 @@ export function EquipePage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return members
-      .filter((m) => (roleFilter === 'all' ? true : m.role === roleFilter))
+      .filter((m) => (roleFilter === 'all' ? true : memberRoles(m).includes(roleFilter)))
       .filter((m) => {
         if (!q) return true
         return m.name.toLowerCase().includes(q) || m.org.toLowerCase().includes(q)
