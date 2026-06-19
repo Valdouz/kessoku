@@ -11,6 +11,7 @@ import type {
   RootData,
   Slot,
   Task,
+  Volunteer,
 } from '@/lib/types'
 import { seedMaterials } from './seedMaterials'
 
@@ -19,12 +20,12 @@ const ts = () => ({ createdAt: TS, updatedAt: TS })
 
 // ── Équipe (exemple) ─────────────────────────────────────────────────────────
 const members: Member[] = [
-  { id: 'mem-coord', name: 'Coordination', role: 'coordination', org: 'Association', phone: '', email: '', isPartner: false, notes: 'Référent·e du projet.', ...ts() },
-  { id: 'mem-son', name: 'Régie son', role: 'son', org: 'Régie', phone: '', email: '', isPartner: false, notes: 'Responsable son en direct.', ...ts() },
-  { id: 'mem-com', name: 'Communication', role: 'communication', org: 'Association', phone: '', email: '', isPartner: false, notes: '', ...ts() },
-  { id: 'mem-log', name: 'Logistique', role: 'logistique', org: 'Association', phone: '', email: '', isPartner: false, notes: '', ...ts() },
-  { id: 'mem-partner', name: 'Association partenaire', role: 'partenaire', org: 'Partenaire', phone: '', email: '', isPartner: true, notes: 'Appui artistique & technique.', ...ts() },
-  { id: 'mem-mairie', name: 'Contact mairie', role: 'contact_externe', org: 'Mairie', phone: '', email: '', isPartner: false, notes: 'Coordination municipale.', ...ts() },
+  { id: 'mem-coord', name: 'Coordination', roles: ['coordination'], org: 'Association', phone: '', email: '', isPartner: false, notes: 'Référent·e du projet.', ...ts() },
+  { id: 'mem-son', name: 'Régie son', roles: ['son'], org: 'Régie', phone: '', email: '', isPartner: false, notes: 'Responsable son en direct.', ...ts() },
+  { id: 'mem-com', name: 'Communication', roles: ['communication'], org: 'Association', phone: '', email: '', isPartner: false, notes: '', ...ts() },
+  { id: 'mem-log', name: 'Logistique', roles: ['logistique'], org: 'Association', phone: '', email: '', isPartner: false, notes: '', ...ts() },
+  { id: 'mem-partner', name: 'Association partenaire', roles: ['partenaire'], org: 'Partenaire', phone: '', email: '', isPartner: true, notes: 'Appui artistique & technique.', ...ts() },
+  { id: 'mem-mairie', name: 'Contact mairie', roles: ['contact_externe'], org: 'Mairie', phone: '', email: '', isPartner: false, notes: 'Coordination municipale.', ...ts() },
 ]
 
 // ── Artistes (exemple) ───────────────────────────────────────────────────────
@@ -63,6 +64,13 @@ const taskDrafts: TaskDraft[] = [
 ]
 const tasks: Task[] = taskDrafts.map((t, i) => ({ done: false, ...t, id: `task-${String(i + 1).padStart(2, '0')}`, order: i, ...ts() }))
 
+// ── Bénévoles (exemple) ──────────────────────────────────────────────────────
+const volunteers: Volunteer[] = [
+  { id: 'vol-1', name: 'Bénévole accueil', poste: 'Accueil / billetterie', availability: '13:00 – 18:00', status: 'confirme', phone: '', email: '', referent: 'Coordination', mealIncluded: true, notes: '', ...ts() },
+  { id: 'vol-2', name: 'Bénévole bar', poste: 'Bar / buvette', availability: '14:00 – 18:00', status: 'pressenti', phone: '', email: '', referent: 'Logistique', mealIncluded: true, notes: '', ...ts() },
+  { id: 'vol-3', name: 'Bénévole montage', poste: 'Montage / démontage', availability: '09:30 – 12:00 · 18:00 – 20:00', status: 'confirme', phone: '', email: '', referent: 'Régie son', mealIncluded: false, notes: '', ...ts() },
+]
+
 // ── Événement 1 : Festival (démo) ────────────────────────────────────────────
 const festivalData: AppData = {
   festival: {
@@ -85,6 +93,7 @@ const festivalData: AppData = {
   materials: seedMaterials,
   tasks,
   members,
+  volunteers,
 }
 
 // ── Événement 2 : Concert (démo, réutilise un peu de matériel) ───────────────
@@ -122,8 +131,9 @@ const concertData: AppData = {
     { id: 'c2-task-03', title: 'Démontage + inventaire retour', phase: 'demontage', priority: 'normale', done: false, assignee: '', dueDate: '', notes: '', order: 2, ...ts() },
   ],
   members: [
-    { id: 'c2-mem-son', name: 'Régie son', role: 'son', org: 'Régie', phone: '', email: '', isPartner: false, notes: '', ...ts() },
+    { id: 'c2-mem-son', name: 'Régie son', roles: ['son'], org: 'Régie', phone: '', email: '', isPartner: false, notes: '', ...ts() },
   ],
+  volunteers: [],
 }
 
 // ── Racine multi-événements ──────────────────────────────────────────────────

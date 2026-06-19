@@ -41,8 +41,9 @@ pnpm-debug.log*
 *.tsbuildinfo
 
 # Données locales du backend (SQLite, secret JWT) — jamais sur git
-data/
-server/data/
+# (ancré à la racine pour ne PAS ignorer src/data, qui contient le seed)
+/data/
+/server/data/
 
 # Config locale de l'outil
 .claude/

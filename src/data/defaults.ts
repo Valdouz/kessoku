@@ -11,6 +11,7 @@ import type {
   Member,
   Slot,
   Task,
+  Volunteer,
 } from '@/lib/types'
 
 function base() {
@@ -44,8 +45,12 @@ export function makeArtist(p: Partial<Artist> = {}): Artist {
     contactEmail: '',
     social: '',
     soundcheckTime: '',
+    arrivalTime: '',
     techNeeds: '',
     backline: '',
+    bringing: '',
+    setlist: '',
+    catering: '',
     notes: '',
     ...p,
   }
@@ -85,11 +90,27 @@ export function makeMember(p: Partial<Member> = {}): Member {
   return {
     ...base(),
     name: '',
-    role: 'benevole',
+    roles: [],
     org: '',
     phone: '',
     email: '',
     isPartner: false,
+    notes: '',
+    ...p,
+  }
+}
+
+export function makeVolunteer(p: Partial<Volunteer> = {}): Volunteer {
+  return {
+    ...base(),
+    name: '',
+    poste: '',
+    availability: '',
+    status: 'pressenti',
+    phone: '',
+    email: '',
+    referent: '',
+    mealIncluded: false,
     notes: '',
     ...p,
   }
@@ -122,6 +143,7 @@ export function makeEvent(festivalPatch: Partial<Festival> = {}, data: Partial<A
       materials: [],
       tasks: [],
       members: [],
+      volunteers: [],
       ...data,
     },
   }

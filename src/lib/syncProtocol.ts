@@ -8,8 +8,16 @@
 import { emptyFestival } from '@/data/defaults'
 import type { AppData, FestivalEvent, RootData } from './types'
 
-export type Coll = 'event' | 'festival' | 'slots' | 'artists' | 'materials' | 'tasks' | 'members'
-const ENTITY_COLLS = ['slots', 'artists', 'materials', 'tasks', 'members'] as const
+export type Coll =
+  | 'event'
+  | 'festival'
+  | 'slots'
+  | 'artists'
+  | 'materials'
+  | 'tasks'
+  | 'members'
+  | 'volunteers'
+const ENTITY_COLLS = ['slots', 'artists', 'materials', 'tasks', 'members', 'volunteers'] as const
 type EntityColl = (typeof ENTITY_COLLS)[number]
 
 export interface Op {
@@ -37,7 +45,15 @@ function byId<T extends { id: string }>(arr: T[]): Map<string, T> {
 }
 
 function emptyData(): AppData {
-  return { festival: { ...emptyFestival }, slots: [], artists: [], materials: [], tasks: [], members: [] }
+  return {
+    festival: { ...emptyFestival },
+    slots: [],
+    artists: [],
+    materials: [],
+    tasks: [],
+    members: [],
+    volunteers: [],
+  }
 }
 
 /** Calcule les ops à envoyer pour passer de `prev` à `next`. */
@@ -60,12 +76,12 @@ export function diffRoots(prev: RootData, next: RootData): Op[] {
       ops.push({ kind: 'upsert', coll: 'festival', eventId: ev.id, updatedAt: ev.updatedAt, payload: ev.data.festival })
     }
     for (const coll of ENTITY_COLLS) {
-      const pm = byId(prevE.data[coll] as Identified[])
-      const nm = byId(ev.data[coll] as Identified[])
+      const pm = byId((prevE.data[coll] as Identified[]) ?? [])
+      const nm = byId((ev.data[coll] as Identified[]) ?? [])
       for (const id of pm.keys()) {
         if (!nm.has(id)) ops.push({ kind: 'delete', coll, eventId: ev.id, id })
       }
-      for (const e of ev.data[coll] as Identified[]) {
+      for (const e of (ev.data[coll] as Identified[]) ?? []) {
         const p = pm.get(e.id)
         if (!p || p.updatedAt !== e.updatedAt) {
           ops.push({ kind: 'upsert', coll, eventId: ev.id, id: e.id, updatedAt: e.updatedAt, payload: e })
@@ -89,7 +105,7 @@ function eventToOps(ev: FestivalEvent): Op[] {
     { kind: 'upsert', coll: 'festival', eventId: ev.id, updatedAt: ev.updatedAt, payload: ev.data.festival },
   ]
   for (const coll of ENTITY_COLLS) {
-    for (const e of ev.data[coll] as Identified[]) {
+    for (const e of (ev.data[coll] as Identified[]) ?? []) {
       ops.push({ kind: 'upsert', coll, eventId: ev.id, id: e.id, updatedAt: e.updatedAt, payload: e })
     }
   }
@@ -139,7 +155,7 @@ export function applyOpsToEvents(events: FestivalEvent[], ops: Op[]): FestivalEv
     }
 
     const coll = op.coll as EntityColl
-    const arr = ev.data[coll] as Identified[]
+    const arr = (ev.data[coll] as Identified[]) ?? []
     if (op.kind === 'delete') {
       ev.data = { ...ev.data, [coll]: arr.filter((x) => x.id !== op.id) } as AppData
     } else {

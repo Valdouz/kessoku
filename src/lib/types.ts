@@ -76,8 +76,13 @@ export interface Artist extends Timestamped {
   social: string
   setDurationMin?: number
   soundcheckTime: string // "11:30"
+  arrivalTime?: string // heure d'arrivée sur site
+  partySize?: number // nombre de personnes (groupe + accompagnants)
   techNeeds: string // besoins techniques / patch / input list
-  backline: string // matériel apporté / demandé
+  backline: string // backline demandé / fourni par la régie
+  bringing?: string // ce que l'artiste apporte (matériel, instruments…)
+  setlist?: string // setlist / morceaux
+  catering?: string // restauration / loge / hospitalité
   notes: string
 }
 
@@ -132,11 +137,29 @@ export type MemberRole =
 
 export interface Member extends Timestamped {
   name: string
-  role: MemberRole
+  /** Une personne peut cumuler plusieurs rôles (ex. son + coordination). */
+  roles: MemberRole[]
+  /** @deprecated ancien champ mono-rôle — conservé pour lire les données existantes. */
+  role?: MemberRole
   org: string // association, partenaire, mairie…
   phone: string
   email: string
   isPartner: boolean
+  notes: string
+}
+
+// ── Bénévoles ────────────────────────────────────────────────────────────────
+export type VolunteerStatus = 'pressenti' | 'confirme' | 'indisponible'
+
+export interface Volunteer extends Timestamped {
+  name: string
+  poste: string // mission / poste (accueil, bar, sécurité, montage…)
+  availability: string // disponibilités (créneaux de présence)
+  status: VolunteerStatus
+  phone: string
+  email: string
+  referent: string // référent / responsable
+  mealIncluded: boolean // repas prévu
   notes: string
 }
 
@@ -148,6 +171,7 @@ export interface AppData {
   materials: MaterialItem[]
   tasks: Task[]
   members: Member[]
+  volunteers: Volunteer[]
 }
 
 // ── Multi-événements ─────────────────────────────────────────────────────────
@@ -172,4 +196,4 @@ export interface ExportFile {
 }
 
 // ── Collections éditables (clés des tableaux dans AppData) ────────────────────
-export type CollectionKey = 'slots' | 'artists' | 'materials' | 'tasks' | 'members'
+export type CollectionKey = 'slots' | 'artists' | 'materials' | 'tasks' | 'members' | 'volunteers'

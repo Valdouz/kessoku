@@ -6,10 +6,12 @@ import type {
   ArtistStatus,
   EventKind,
   MaterialStatus,
+  Member,
   MemberRole,
   SlotType,
   TaskPhase,
   TaskPriority,
+  VolunteerStatus,
 } from './types'
 
 export interface LabelDef {
@@ -90,7 +92,19 @@ export const MEMBER_ROLES: Record<MemberRole, LabelDef> = {
   autre: { label: 'Autre', badge: 'bg-night-600 text-slate-300', color: '#94a3b8' },
 }
 
+export const VOLUNTEER_STATUS: Record<VolunteerStatus, LabelDef> = {
+  pressenti: { label: 'Pressenti', badge: 'bg-slate-500/15 text-slate-300', color: '#94a3b8' },
+  confirme: { label: 'Confirmé', badge: 'bg-emerald-500/15 text-emerald-300', color: '#10b981' },
+  indisponible: { label: 'Indisponible', badge: 'bg-red-500/15 text-red-300', color: '#ef4444' },
+}
+
 /** Transforme un Record de LabelDef en options {value,label} pour les <select>. */
 export function toOptions<T extends string>(rec: Record<T, LabelDef>): { value: T; label: string }[] {
   return (Object.keys(rec) as T[]).map((value) => ({ value, label: rec[value].label }))
+}
+
+/** Rôles d'un membre (gère la rétrocompat : ancien champ `role` -> tableau). */
+export function memberRoles(m: Member): MemberRole[] {
+  if (Array.isArray(m.roles) && m.roles.length) return m.roles
+  return m.role ? [m.role] : []
 }

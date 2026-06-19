@@ -17,6 +17,7 @@ import {
   makeMember,
   makeSlot,
   makeTask,
+  makeVolunteer,
 } from '@/data/defaults'
 import { seedRoot } from '@/data/seed'
 import { applyOpsToEvents, type Op } from './syncProtocol'
@@ -32,6 +33,7 @@ import type {
   RootData,
   Slot,
   Task,
+  Volunteer,
 } from './types'
 
 export const SCHEMA_VERSION = 2
@@ -91,6 +93,11 @@ interface StoreState {
   addMember: (input?: Partial<Member>) => Member
   updateMember: (id: ID, patch: Partial<Member>) => void
   removeMember: (id: ID) => void
+
+  // Bénévoles
+  addVolunteer: (input?: Partial<Volunteer>) => Volunteer
+  updateVolunteer: (id: ID, patch: Partial<Volunteer>) => void
+  removeVolunteer: (id: ID) => void
 
   // Données de l'événement courant
   replaceData: (data: AppData) => void
@@ -290,6 +297,17 @@ export const useStore = create<StoreState>()(
         updateMember: (id, patch) => mutate((d) => ({ members: patchIn(d.members, id, patch) })),
         removeMember: (id) => mutate((d) => ({ members: d.members.filter((x) => x.id !== id) })),
 
+        // ── Bénévoles ───────────────────────────────────────────────────────
+        addVolunteer: (input) => {
+          const volunteer = makeVolunteer(input)
+          mutate((d) => ({ volunteers: [...(d.volunteers ?? []), volunteer] }))
+          return volunteer
+        },
+        updateVolunteer: (id, patch) =>
+          mutate((d) => ({ volunteers: patchIn(d.volunteers ?? [], id, patch) })),
+        removeVolunteer: (id) =>
+          mutate((d) => ({ volunteers: (d.volunteers ?? []).filter((x) => x.id !== id) })),
+
         // ── Données de l'événement courant ─────────────────────────────────
         replaceData: (data) =>
           set((s) => ({
@@ -385,6 +403,7 @@ export const useArtists = () => useStore((s) => findEvent(s)?.data.artists ?? EM
 export const useMaterials = () => useStore((s) => findEvent(s)?.data.materials ?? EMPTY)
 export const useTasks = () => useStore((s) => findEvent(s)?.data.tasks ?? EMPTY)
 export const useMembers = () => useStore((s) => findEvent(s)?.data.members ?? EMPTY)
+export const useVolunteers = () => useStore((s) => findEvent(s)?.data.volunteers ?? EMPTY)
 export const useLastModified = () => useStore((s) => s.lastModified)
 
 // ── Sélecteurs multi-événements ──────────────────────────────────────────────

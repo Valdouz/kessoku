@@ -2,7 +2,7 @@
 // Le serveur applique les ops à son document canonique (par room) et sait le
 // resérialiser en ops pour l'envoyer aux nouveaux arrivants.
 
-const ENTITY_COLLS = ['slots', 'artists', 'materials', 'tasks', 'members']
+const ENTITY_COLLS = ['slots', 'artists', 'materials', 'tasks', 'members', 'volunteers']
 
 function emptyFestival() {
   return {
@@ -12,7 +12,7 @@ function emptyFestival() {
   }
 }
 function emptyData() {
-  return { festival: emptyFestival(), slots: [], artists: [], materials: [], tasks: [], members: [] }
+  return { festival: emptyFestival(), slots: [], artists: [], materials: [], tasks: [], members: [], volunteers: [] }
 }
 
 function maxIso(a, b) {

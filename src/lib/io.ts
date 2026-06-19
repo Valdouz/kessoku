@@ -8,8 +8,10 @@ import type {
   ExportFile,
   MaterialItem,
   Member,
+  MemberRole,
   Slot,
   Task,
+  Volunteer,
 } from './types'
 import { SCHEMA_VERSION } from './store'
 import { BRAND } from '@/brand'
@@ -22,6 +24,7 @@ import {
   SLOT_TYPES,
   TASK_PHASES,
   TASK_PRIORITIES,
+  VOLUNTEER_STATUS,
 } from './labels'
 
 /** Déclenche le téléchargement d'un fichier JSON dans le navigateur. */
@@ -107,6 +110,8 @@ export function parseImport(raw: string): AppData {
   const materials = clone(data.materials as MaterialItem[])
   const tasks = clone(data.tasks as Task[])
   const members = clone(data.members as Member[])
+  // Collection optionnelle (ajoutée après coup) : absente des anciens exports.
+  const volunteers = clone((Array.isArray(data.volunteers) ? data.volunteers : []) as Volunteer[])
 
   const seenSlot = new Set<string>()
   for (const s of slots) {
@@ -152,8 +157,20 @@ export function parseImport(raw: string): AppData {
     const r = mb as unknown as Record<string, unknown>
     mb.id = safeId(r.id, seenMember)
     Object.assign(mb, safeStamps(r))
-    mb.role = safeEnum(mb.role, MEMBER_ROLES, 'autre')
+    // Multi-rôles : on accepte un tableau `roles` OU l'ancien champ `role`.
+    const raw = Array.isArray(r.roles) ? r.roles : r.role != null ? [r.role] : []
+    mb.roles = raw.filter((x): x is MemberRole => typeof x === 'string' && x in MEMBER_ROLES)
+    delete r.role
     mb.isPartner = Boolean(mb.isPartner)
+  }
+
+  const seenVol = new Set<string>()
+  for (const v of volunteers) {
+    const r = v as unknown as Record<string, unknown>
+    v.id = safeId(r.id, seenVol)
+    Object.assign(v, safeStamps(r))
+    v.status = safeEnum(v.status, VOLUNTEER_STATUS, 'pressenti')
+    v.mealIncluded = Boolean(v.mealIncluded)
   }
 
   // order : réindexation 0..n-1 pour slots et tâches.
@@ -165,7 +182,7 @@ export function parseImport(raw: string): AppData {
     if (s.artistId && !artistIds.has(s.artistId)) s.artistId = undefined
   }
 
-  return { festival: data.festival, slots, artists, materials, tasks, members }
+  return { festival: data.festival, slots, artists, materials, tasks, members, volunteers }
 }
 
 /** Slugifie une chaîne pour un nom de fichier (sans accents ni caractères spéciaux). */
