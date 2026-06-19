@@ -3,13 +3,13 @@ import { AccountSection } from '@/features/auth/AccountSection'
 import { UsersSection } from '@/features/auth/UsersSection'
 import { EventsSection } from '@/features/evenements/EventsSection'
 import { CollabSection } from '@/features/collab/CollabSection'
-import { useAuth } from '@/lib/auth'
+import { useEffectiveRole } from '@/lib/auth'
 import { FestivalForm } from './FestivalForm'
 import { DataSection } from './DataSection'
 import { AboutSection } from './AboutSection'
 
 export function ReglagesPage() {
-  const isAdmin = useAuth((s) => s.user?.role === 'admin')
+  const isAdmin = useEffectiveRole() === 'admin'
 
   return (
     <div>

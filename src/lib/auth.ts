@@ -2,6 +2,7 @@
 // Le jeton est stocké en localStorage et envoyé en Authorization Bearer aux
 // appels /api, et en paramètre ?token= à la connexion WebSocket (/sync).
 
+import { useMemo } from 'react'
 import { create } from 'zustand'
 
 export type Role = 'admin' | 'member'
@@ -9,6 +10,14 @@ export interface AuthUser {
   id: number
   username: string
   role: Role
+}
+
+/** Cible d'un aperçu « voir en tant que » (admin uniquement). */
+export interface PreviewTarget {
+  id: number
+  username: string
+  role: Role
+  eventAccess: string // '*' ou JSON d'ids d'événements
 }
 
 const KEY = 'kessoku.auth'
@@ -68,9 +77,13 @@ interface AuthState {
   user: AuthUser | null
   status: AuthStatus
   error: string
+  /** Aperçu « voir en tant que » (admin) — purement visuel, n'affecte pas le compte. */
+  previewAs: PreviewTarget | null
   login: (username: string, password: string) => Promise<boolean>
   logout: () => void
   bootstrap: () => Promise<void>
+  setPreviewAs: (target: PreviewTarget | null) => void
+  exitPreview: () => void
 }
 
 const init = load()
@@ -80,6 +93,9 @@ export const useAuth = create<AuthState>((set, get) => ({
   user: init.user,
   status: init.token ? 'loading' : 'anon',
   error: '',
+  previewAs: null,
+  setPreviewAs: (target) => set({ previewAs: target }),
+  exitPreview: () => set({ previewAs: null }),
 
   login: async (username, password) => {
     try {
@@ -104,7 +120,7 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   logout: () => {
     clearStored()
-    set({ token: null, user: null, status: 'anon', error: '' })
+    set({ token: null, user: null, status: 'anon', error: '', previewAs: null })
   },
 
   bootstrap: async () => {
@@ -121,3 +137,27 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 }))
+
+// ── Aperçu « voir en tant que » ──────────────────────────────────────────────
+export const usePreview = () => useAuth((s) => s.previewAs)
+
+/** Rôle effectif : celui de l'aperçu si actif, sinon celui du compte. */
+export const useEffectiveRole = (): Role | null =>
+  useAuth((s) => s.previewAs?.role ?? s.user?.role ?? null)
+
+/**
+ * Ids d'événements visibles : null = tous (admin / pas d'aperçu),
+ * sinon le périmètre du compte prévisualisé.
+ */
+export function useAllowedEventIds(): Set<string> | null {
+  const previewAs = useAuth((s) => s.previewAs)
+  return useMemo(() => {
+    if (!previewAs || previewAs.role === 'admin' || previewAs.eventAccess === '*') return null
+    try {
+      const arr = JSON.parse(previewAs.eventAccess)
+      return new Set(Array.isArray(arr) ? (arr as string[]) : [])
+    } catch {
+      return new Set<string>()
+    }
+  }, [previewAs])
+}

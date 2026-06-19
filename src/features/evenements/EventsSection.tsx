@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog } from '@/components/ui'
 import { useEvents, useCurrentEventId, useStore } from '@/lib/store'
+import { useAllowedEventIds, usePreview } from '@/lib/auth'
 import { EVENT_KINDS } from '@/lib/labels'
 import { formatDateFR } from '@/lib/time'
 import type { FestivalEvent } from '@/lib/types'
@@ -13,22 +14,29 @@ function summary(e: FestivalEvent): string {
 }
 
 export function EventsSection() {
-  const events = useEvents()
+  const allEvents = useEvents()
   const currentId = useCurrentEventId()
   const switchEvent = useStore((s) => s.switchEvent)
   const duplicateEvent = useStore((s) => s.duplicateEvent)
   const removeEvent = useStore((s) => s.removeEvent)
+  const allowed = useAllowedEventIds()
+  const preview = usePreview()
   const [formOpen, setFormOpen] = useState(false)
   const [toDelete, setToDelete] = useState<FestivalEvent | null>(null)
+
+  // En aperçu restreint, on ne liste que les événements visibles par le compte.
+  const events = allowed ? allEvents.filter((e) => allowed.has(e.id)) : allEvents
 
   return (
     <Card>
       <CardHeader>
         <h2 className="text-base font-semibold text-white">Événements</h2>
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus size={16} />
-          Nouvel événement
-        </Button>
+        {!preview && (
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus size={16} />
+            Nouvel événement
+          </Button>
+        )}
       </CardHeader>
       <CardBody className="space-y-2">
         <p className="mb-1 text-xs text-slate-500">

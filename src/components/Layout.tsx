@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
+import { Eye, Menu, X } from 'lucide-react'
 import { useFestival } from '@/lib/store'
+import { usePreview, useAuth } from '@/lib/auth'
 import { BRAND } from '@/brand'
 import { NAV } from '@/nav'
 import { daysUntil } from '@/lib/time'
@@ -52,6 +53,8 @@ export function Layout() {
   const mainRef = useRef<HTMLElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
+  const preview = usePreview()
+  const exitPreview = useAuth((s) => s.exitPreview)
 
   // Ferme le menu mobile à chaque changement de page.
   useEffect(() => setMenuOpen(false), [location.pathname])
@@ -192,6 +195,22 @@ export function Layout() {
         className="px-4 pb-28 pt-5 outline-none sm:px-6 lg:ml-64 lg:px-10 lg:pb-12"
       >
         <div className="mx-auto w-full max-w-6xl">
+          {preview && (
+            <div className="no-print mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm text-amber-200">
+              <Eye size={16} className="shrink-0" />
+              <span>
+                Aperçu en tant que <strong>{preview.username}</strong> (
+                {preview.role === 'admin' ? 'admin' : 'membre'}) — tu vois ce que cette personne voit.
+              </span>
+              <button
+                type="button"
+                onClick={exitPreview}
+                className="ml-auto rounded-lg bg-amber-500/20 px-3 py-1 font-medium text-amber-100 hover:bg-amber-500/30"
+              >
+                Quitter l'aperçu
+              </button>
+            </div>
+          )}
           <Outlet />
         </div>
       </main>

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ChevronsUpDown, Plus, Settings2 } from 'lucide-react'
 import { useEvents, useCurrentEventId, useStore } from '@/lib/store'
+import { useAllowedEventIds, usePreview } from '@/lib/auth'
 import { EVENT_KINDS } from '@/lib/labels'
 import { formatDateShortFR } from '@/lib/time'
 import { EventForm } from '@/features/evenements/EventForm'
@@ -9,11 +10,26 @@ import { cn } from './ui/cn'
 
 /** Sélecteur d'événement courant + accès création / gestion. */
 export function EventSwitcher() {
-  const events = useEvents()
+  const allEvents = useEvents()
   const currentId = useCurrentEventId()
   const switchEvent = useStore((s) => s.switchEvent)
+  const allowed = useAllowedEventIds()
+  const preview = usePreview()
   const [open, setOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+
+  // En aperçu restreint, on ne montre que les événements visibles par le compte.
+  const events = useMemo(
+    () => (allowed ? allEvents.filter((e) => allowed.has(e.id)) : allEvents),
+    [allEvents, allowed],
+  )
+
+  // Si l'événement courant n'est pas visible dans l'aperçu, on bascule sur le premier visible.
+  useEffect(() => {
+    if (allowed && events.length > 0 && !events.some((e) => e.id === currentId)) {
+      switchEvent(events[0].id)
+    }
+  }, [allowed, events, currentId, switchEvent])
 
   const current = events.find((e) => e.id === currentId) ?? events[0]
   if (!current) return null
@@ -82,26 +98,30 @@ export function EventSwitcher() {
               )
             })}
 
-            <div className="my-1 border-t border-night-700" />
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                setFormOpen(true)
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-kessoku-300 hover:bg-night-800"
-            >
-              <Plus size={15} />
-              Nouvel événement
-            </button>
-            <Link
-              to="/reglages"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-slate-400 hover:bg-night-800"
-            >
-              <Settings2 size={15} />
-              Gérer les événements
-            </Link>
+            {!preview && (
+              <>
+                <div className="my-1 border-t border-night-700" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    setFormOpen(true)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-kessoku-300 hover:bg-night-800"
+                >
+                  <Plus size={15} />
+                  Nouvel événement
+                </button>
+                <Link
+                  to="/reglages"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-slate-400 hover:bg-night-800"
+                >
+                  <Settings2 size={15} />
+                  Gérer les événements
+                </Link>
+              </>
+            )}
           </div>
         </>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Plus, Trash2, Users, KeyRound } from 'lucide-react'
+import { Eye, Plus, Trash2, Users, KeyRound } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -84,6 +84,7 @@ function AccessPicker({
 
 export function UsersSection() {
   const me = useAuth((s) => s.user)
+  const setPreviewAs = useAuth((s) => s.setPreviewAs)
   const events = useEvents().map((e) => ({ id: e.id, name: e.data.festival.name || 'Sans nom' }))
   const eventName = (id: string) => events.find((e) => e.id === id)?.name ?? '1 événement'
 
@@ -255,6 +256,19 @@ export function UsersSection() {
                 <div className="mt-0.5 text-xs text-slate-500">Accès : {accessSummary(u)}</div>
               </div>
               <div className="flex items-center gap-1">
+                {u.id !== me?.id && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setPreviewAs({ id: u.id, username: u.username, role: u.role, eventAccess: u.event_access })
+                    }
+                    aria-label={`Voir en tant que ${u.username}`}
+                    title="Voir en tant que"
+                  >
+                    <Eye size={15} />
+                  </Button>
+                )}
                 {u.role !== 'admin' && (
                   <Button variant="ghost" size="sm" onClick={() => openEdit(u)} aria-label={`Modifier l'accès de ${u.username}`}>
                     <KeyRound size={15} />
