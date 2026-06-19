@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { Clock, Volume2, Users, Phone, Mail } from 'lucide-react'
+import { Clock, Volume2, Users, Phone, Mail, Package, ListMusic, Utensils } from 'lucide-react'
 import { Badge, cn } from '@/components/ui'
 import { useArtists, useFestival, useSlots } from '@/lib/store'
 import { ARTIST_KINDS, ARTIST_STATUS } from '@/lib/labels'
@@ -59,6 +59,7 @@ export function RoadsheetsDoc() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Field label="Arrivée" icon={<Clock size={14} />} value={a.arrivalTime || '—'} />
               <Field label="Passage" icon={<Clock size={14} />} value={passage} />
               <Field
                 label="Durée"
@@ -66,6 +67,13 @@ export function RoadsheetsDoc() {
               />
               <Field label="Balance" icon={<Volume2 size={14} />} value={a.soundcheckTime || '—'} />
               <Field label="Scène" value={slot?.stage || festival.venue || '—'} />
+              {a.partySize != null && (
+                <Field
+                  label="Nb de personnes"
+                  icon={<Users size={14} />}
+                  value={String(a.partySize)}
+                />
+              )}
             </div>
 
             {a.members && (
@@ -73,6 +81,15 @@ export function RoadsheetsDoc() {
             )}
             {a.techNeeds && <Block label="Besoins techniques">{a.techNeeds}</Block>}
             {a.backline && <Block label="Backline">{a.backline}</Block>}
+            {a.bringing && (
+              <Block label="Apporte" icon={<Package size={14} />}>{a.bringing}</Block>
+            )}
+            {a.setlist && (
+              <Block label="Setlist" icon={<ListMusic size={14} />}>{a.setlist}</Block>
+            )}
+            {a.catering && (
+              <Block label="Restauration / loge" icon={<Utensils size={14} />}>{a.catering}</Block>
+            )}
             {a.notes && <Block label="Notes">{a.notes}</Block>}
 
             {(a.contactName || a.contactPhone || a.contactEmail) && (

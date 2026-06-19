@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui'
-import { useArtists, useFestival, useMaterials, useMembers, useSlots } from '@/lib/store'
-import { SLOT_TYPES, MEMBER_ROLES, MATERIAL_STATUS } from '@/lib/labels'
+import { useArtists, useFestival, useMaterials, useMembers, useSlots, useVolunteers } from '@/lib/store'
+import { SLOT_TYPES, MEMBER_ROLES, MATERIAL_STATUS, memberRoles } from '@/lib/labels'
 import { addMinutes, formatDuration, timeToMinutes } from '@/lib/time'
 import { formatEUR } from '@/lib/money'
 import type { MaterialStatus } from '@/lib/types'
@@ -14,6 +14,8 @@ export function RecapDoc() {
   const artists = useArtists()
   const members = useMembers()
   const materials = useMaterials()
+  const volunteers = useVolunteers()
+  const volunteersConfirmed = volunteers.filter((v) => v.status === 'confirme').length
 
   const artistName = useMemo(() => {
     const m = new Map(artists.map((a) => [a.id, a.name]))
@@ -104,12 +106,15 @@ export function RecapDoc() {
               <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-slate-200">{m.name}</span>
                 <span className="text-xs text-slate-500">
-                  {MEMBER_ROLES[m.role].label}
+                  {memberRoles(m).map((r) => MEMBER_ROLES[r].label).join(', ')}
                   {m.org ? ` · ${m.org}` : ''}
                 </span>
               </div>
             ))}
             {members.length === 0 && <p className="text-sm text-slate-400">—</p>}
+            <p className="border-t border-night-800 pt-2 text-xs text-slate-500">
+              Bénévoles : {volunteers.length} ({volunteersConfirmed} confirmés)
+            </p>
           </CardBody>
         </Card>
 

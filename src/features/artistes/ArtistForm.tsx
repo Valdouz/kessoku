@@ -155,6 +155,71 @@ export function ArtistForm({ open, artist, onClose, onSubmit }: ArtistFormProps)
           </Field>
         </div>
 
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Arrivée" htmlFor="artist-arrival">
+            <Input
+              id="artist-arrival"
+              type="time"
+              value={draft.arrivalTime ?? ''}
+              onChange={(e) =>
+                set('arrivalTime', e.target.value === '' ? undefined : e.target.value)
+              }
+            />
+          </Field>
+          <Field label="Nb de personnes" htmlFor="artist-party-size">
+            <Input
+              id="artist-party-size"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={draft.partySize ?? ''}
+              placeholder="Ex. 5"
+              onChange={(e) => {
+                const raw = e.target.value
+                if (raw === '') {
+                  set('partySize', undefined)
+                  return
+                }
+                const n = Number(raw)
+                if (!Number.isNaN(n)) set('partySize', n)
+              }}
+            />
+          </Field>
+        </div>
+
+        <Field label="Apporte (matériel/instruments)" htmlFor="artist-bringing">
+          <Textarea
+            id="artist-bringing"
+            value={draft.bringing ?? ''}
+            placeholder="Ex. guitares, pédalier, fûts de batterie…"
+            onChange={(e) =>
+              set('bringing', e.target.value === '' ? undefined : e.target.value)
+            }
+          />
+        </Field>
+
+        <Field label="Setlist" htmlFor="artist-setlist">
+          <Textarea
+            id="artist-setlist"
+            value={draft.setlist ?? ''}
+            placeholder="Ordre des morceaux…"
+            onChange={(e) =>
+              set('setlist', e.target.value === '' ? undefined : e.target.value)
+            }
+          />
+        </Field>
+
+        <Field label="Restauration / loge" htmlFor="artist-catering">
+          <Textarea
+            id="artist-catering"
+            value={draft.catering ?? ''}
+            placeholder="Repas, boissons, loge, allergies…"
+            onChange={(e) =>
+              set('catering', e.target.value === '' ? undefined : e.target.value)
+            }
+          />
+        </Field>
+
         <Field label="Besoins techniques" htmlFor="artist-tech" hint="Patch, input list, demandes plateau…">
           <Textarea
             id="artist-tech"

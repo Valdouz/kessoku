@@ -1,11 +1,14 @@
 import {
   Clock,
+  ListMusic,
   Mail,
   Music2,
+  Package,
   Pencil,
   Phone,
   Trash2,
   Users,
+  Utensils,
   Volume2,
 } from 'lucide-react'
 import { Card, CardBody, Badge, Button, Select } from '@/components/ui'
@@ -58,9 +61,18 @@ export function ArtistCard({ artist, onEdit, onDelete, onStatusChange }: ArtistC
           </div>
         </div>
 
-        {/* Set / balance */}
-        {(artist.setDurationMin != null || artist.soundcheckTime) && (
+        {/* Arrivée / set / balance / nb de personnes */}
+        {(artist.arrivalTime ||
+          artist.setDurationMin != null ||
+          artist.soundcheckTime ||
+          artist.partySize != null) && (
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300">
+            {artist.arrivalTime && (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock size={14} className="text-emerald-300" />
+                Arrivée {artist.arrivalTime}
+              </span>
+            )}
             {artist.setDurationMin != null && (
               <span className="inline-flex items-center gap-1.5">
                 <Clock size={14} className="text-stellar-400" />
@@ -71,6 +83,12 @@ export function ArtistCard({ artist, onEdit, onDelete, onStatusChange }: ArtistC
               <span className="inline-flex items-center gap-1.5">
                 <Volume2 size={14} className="text-cyan-300" />
                 Balance {artist.soundcheckTime}
+              </span>
+            )}
+            {artist.partySize != null && (
+              <span className="inline-flex items-center gap-1.5">
+                <Users size={14} className="text-slate-400" />
+                {artist.partySize} pers.
               </span>
             )}
           </div>
@@ -119,8 +137,13 @@ export function ArtistCard({ artist, onEdit, onDelete, onStatusChange }: ArtistC
           </p>
         )}
 
-        {/* Besoins techniques / backline / notes */}
-        {(artist.techNeeds || artist.backline || artist.notes) && (
+        {/* Besoins techniques / backline / apporte / setlist / restauration / notes */}
+        {(artist.techNeeds ||
+          artist.backline ||
+          artist.bringing ||
+          artist.setlist ||
+          artist.catering ||
+          artist.notes) && (
           <dl className="space-y-2 border-t border-night-700 pt-3 text-sm">
             {artist.techNeeds && (
               <div>
@@ -136,6 +159,33 @@ export function ArtistCard({ artist, onEdit, onDelete, onStatusChange }: ArtistC
                   Backline
                 </dt>
                 <dd className="mt-0.5 whitespace-pre-wrap text-slate-300">{artist.backline}</dd>
+              </div>
+            )}
+            {artist.bringing && (
+              <div>
+                <dt className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <Package size={13} />
+                  Apporte
+                </dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-slate-300">{artist.bringing}</dd>
+              </div>
+            )}
+            {artist.setlist && (
+              <div>
+                <dt className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <ListMusic size={13} />
+                  Setlist
+                </dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-slate-300">{artist.setlist}</dd>
+              </div>
+            )}
+            {artist.catering && (
+              <div>
+                <dt className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <Utensils size={13} />
+                  Restauration / loge
+                </dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-slate-300">{artist.catering}</dd>
               </div>
             )}
             {artist.notes && (
