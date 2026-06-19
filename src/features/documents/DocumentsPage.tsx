@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { ClipboardList, Mic2, Printer, Users } from 'lucide-react'
+import { ClipboardList, Files, Mic2, Printer, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button, PageHeader, cn } from '@/components/ui'
+import { DossierDoc } from './DossierDoc'
 import { RecapDoc } from './RecapDoc'
 import { ContactsDoc } from './ContactsDoc'
 import { RoadsheetsDoc } from './RoadsheetsDoc'
 
-type DocKey = 'recap' | 'contacts' | 'roadsheets'
+type DocKey = 'dossier' | 'recap' | 'contacts' | 'roadsheets'
 
 const DOCS: { key: DocKey; label: string; desc: string; icon: LucideIcon }[] = [
-  { key: 'recap', label: 'Récapitulatif', desc: "Infos, programme, équipe et besoins en une page", icon: ClipboardList },
-  { key: 'contacts', label: 'Feuille de contacts', desc: 'Artistes + équipe, en tableaux', icon: Users },
+  { key: 'dossier', label: 'Dossier complet', desc: 'Tout : infos, programme, contacts, organigramme, matériel à apporter', icon: Files },
+  { key: 'recap', label: 'Récapitulatif', desc: 'Infos, programme, équipe et besoins en une page', icon: ClipboardList },
+  { key: 'contacts', label: 'Feuille de contacts', desc: 'Artistes + équipe + bénévoles, en tableaux', icon: Users },
   { key: 'roadsheets', label: 'Feuilles de route artistes', desc: 'Une fiche par artiste (horaires, besoins…)', icon: Mic2 },
 ]
 
 export function DocumentsPage() {
-  const [doc, setDoc] = useState<DocKey>('recap')
+  const [doc, setDoc] = useState<DocKey>('dossier')
 
   return (
     <div>
@@ -54,6 +56,7 @@ export function DocumentsPage() {
         </div>
       </div>
 
+      {doc === 'dossier' && <DossierDoc />}
       {doc === 'recap' && <RecapDoc />}
       {doc === 'contacts' && <ContactsDoc />}
       {doc === 'roadsheets' && <RoadsheetsDoc />}
