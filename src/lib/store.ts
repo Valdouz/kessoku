@@ -30,13 +30,14 @@ import type {
   ID,
   MaterialItem,
   Member,
+  MemberRole,
   RootData,
   Slot,
   Task,
   Volunteer,
 } from './types'
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 const STORAGE_KEY = 'kessoku.v1'
 const BACKUP_KEY = 'kessoku.backup.v1'
 
@@ -189,6 +190,39 @@ function cloneData(src: AppData, pick: NonNullable<CopyOptions['copy']>): Partia
   return out
 }
 
+// Migration : un « bénévole » n'est plus un rôle d'équipe → on déplace ces membres
+// vers la collection bénévoles (id déterministe = idempotent et sans doublon en sync).
+function migrateBenevoles(events: FestivalEvent[]): FestivalEvent[] {
+  const rolesOf = (m: Member): string[] =>
+    (m.roles && m.roles.length ? m.roles : m.role ? [m.role] : []) as string[]
+  return events.map((ev) => {
+    const members = ev.data.members ?? []
+    if (!members.some((m) => rolesOf(m).includes('benevole'))) return ev
+    const kept: Member[] = []
+    const volunteers = [...(ev.data.volunteers ?? [])]
+    const existing = new Set(volunteers.map((v) => v.id))
+    for (const m of members) {
+      const roles = rolesOf(m)
+      if (!roles.includes('benevole')) {
+        kept.push(m)
+        continue
+      }
+      const others = roles.filter((r) => r !== 'benevole') as MemberRole[]
+      if (others.length > 0) kept.push({ ...m, roles: others, role: undefined })
+      const vid = `vol-${m.id}`
+      if (!existing.has(vid)) {
+        existing.add(vid)
+        volunteers.push({
+          id: vid, name: m.name, poste: m.org || '', availability: '', status: 'pressenti',
+          phone: m.phone || '', email: m.email || '', referent: '', mealIncluded: false,
+          notes: m.notes || '', createdAt: m.createdAt, updatedAt: nowISO(),
+        })
+      }
+    }
+    return { ...ev, data: { ...ev.data, members: kept, volunteers } }
+  })
+}
+
 export const useStore = create<StoreState>()(
   persist(
     (set, get) => {
@@ -339,14 +373,17 @@ export const useStore = create<StoreState>()(
             return { events, currentEventId, lastModified: nowISO() }
           }),
 
-        replaceEvents: (events) =>
-          set((s) => ({
-            events,
-            currentEventId: events.some((e) => e.id === s.currentEventId)
-              ? s.currentEventId
-              : (events[0]?.id ?? s.currentEventId),
-            lastModified: nowISO(),
-          })),
+        replaceEvents: (incoming) =>
+          set((s) => {
+            const events = migrateBenevoles(incoming)
+            return {
+              events,
+              currentEventId: events.some((e) => e.id === s.currentEventId)
+                ? s.currentEventId
+                : (events[0]?.id ?? s.currentEventId),
+              lastModified: nowISO(),
+            }
+          }),
       }
     },
     {
@@ -362,34 +399,38 @@ export const useStore = create<StoreState>()(
       // on copie d'abord l'ancien état dans une clé de secours.
       migrate: (persisted, version): RootData & { lastModified: string } => {
         const p = persisted as Record<string, unknown> | null
-        // Déjà au format v2 : passthrough.
+        let root: RootData & { lastModified: string }
         if (p && Array.isArray(p.events)) {
-          return p as unknown as RootData & { lastModified: string }
-        }
-        // v1 : { data: AppData, lastModified }
-        const data = p?.data as AppData | undefined
-        if (version < 2 && data && data.festival) {
-          try {
-            if (typeof localStorage !== 'undefined' && !localStorage.getItem(BACKUP_KEY)) {
-              localStorage.setItem(
-                BACKUP_KEY,
-                JSON.stringify({ savedAt: nowISO(), schemaVersion: 1, state: p }),
-              )
+          // Déjà multi-événements (v2+).
+          root = p as unknown as RootData & { lastModified: string }
+        } else {
+          // v1 : { data: AppData, lastModified } -> wrap en un événement.
+          const data = p?.data as AppData | undefined
+          if (version < 2 && data && data.festival) {
+            try {
+              if (typeof localStorage !== 'undefined' && !localStorage.getItem(BACKUP_KEY)) {
+                localStorage.setItem(
+                  BACKUP_KEY,
+                  JSON.stringify({ savedAt: nowISO(), schemaVersion: 1, state: p }),
+                )
+              }
+            } catch {
+              /* sauvegarde best-effort */
             }
-          } catch {
-            /* sauvegarde best-effort */
+            const stamp = (p?.lastModified as string) || nowISO()
+            const event: FestivalEvent = {
+              id: newId(),
+              data: { ...data, festival: { ...data.festival, kind: data.festival.kind || 'festival' } },
+              createdAt: stamp,
+              updatedAt: stamp,
+            }
+            root = { events: [event], currentEventId: event.id, lastModified: stamp }
+          } else {
+            root = { ...seedRoot, lastModified: nowISO() }
           }
-          const stamp = (p?.lastModified as string) || nowISO()
-          const event: FestivalEvent = {
-            id: newId(),
-            data: { ...data, festival: { ...data.festival, kind: data.festival.kind || 'festival' } },
-            createdAt: stamp,
-            updatedAt: stamp,
-          }
-          return { events: [event], currentEventId: event.id, lastModified: stamp }
         }
-        // Cas inattendu : on repart du seed.
-        return { ...seedRoot, lastModified: nowISO() }
+        // v3 : les bénévoles sortent de l'Équipe vers leur espace dédié.
+        return { ...root, events: migrateBenevoles(root.events) }
       },
     },
   ),

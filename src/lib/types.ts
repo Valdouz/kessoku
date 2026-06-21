@@ -123,6 +123,7 @@ export interface Task extends Timestamped {
 }
 
 // ── Équipe & contacts ────────────────────────────────────────────────────────
+// NB : les bénévoles ont leur propre espace (entité Volunteer) — pas de rôle « benevole » ici.
 export type MemberRole =
   | 'coordination'
   | 'artistes'
@@ -130,7 +131,6 @@ export type MemberRole =
   | 'logistique'
   | 'son'
   | 'securite'
-  | 'benevole'
   | 'partenaire'
   | 'contact_externe'
   | 'autre'

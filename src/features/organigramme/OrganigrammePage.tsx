@@ -13,7 +13,6 @@ const POLE_ORDER: MemberRole[] = [
   'communication',
   'logistique',
   'securite',
-  'benevole',
   'autre',
 ]
 

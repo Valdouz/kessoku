@@ -86,7 +86,6 @@ export const MEMBER_ROLES: Record<MemberRole, LabelDef> = {
   logistique: { label: 'Logistique', badge: 'bg-amber-500/15 text-amber-300', color: '#f59e0b' },
   son: { label: 'Son / régie', badge: 'bg-cyan-500/15 text-cyan-300', color: '#22d3ee' },
   securite: { label: 'Sécurité', badge: 'bg-orange-500/15 text-orange-300', color: '#fb923c' },
-  benevole: { label: 'Bénévole', badge: 'bg-emerald-500/15 text-emerald-300', color: '#10b981' },
   partenaire: { label: 'Partenaire', badge: 'bg-indigo-500/15 text-indigo-300', color: '#818cf8' },
   contact_externe: { label: 'Contact externe', badge: 'bg-slate-500/15 text-slate-300', color: '#94a3b8' },
   autre: { label: 'Autre', badge: 'bg-night-600 text-slate-300', color: '#94a3b8' },
@@ -103,8 +102,8 @@ export function toOptions<T extends string>(rec: Record<T, LabelDef>): { value: 
   return (Object.keys(rec) as T[]).map((value) => ({ value, label: rec[value].label }))
 }
 
-/** Rôles d'un membre (gère la rétrocompat : ancien champ `role` -> tableau). */
+/** Rôles d'un membre (rétrocompat `role`->tableau ; filtre les rôles inconnus, ex. ancien « benevole »). */
 export function memberRoles(m: Member): MemberRole[] {
-  if (Array.isArray(m.roles) && m.roles.length) return m.roles
-  return m.role ? [m.role] : []
+  const raw = Array.isArray(m.roles) && m.roles.length ? m.roles : m.role ? [m.role] : []
+  return raw.filter((r): r is MemberRole => r in MEMBER_ROLES)
 }
