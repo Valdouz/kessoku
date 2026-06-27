@@ -42,6 +42,13 @@ npm start                 # ou via PM2 :  pm2 start dist/index.js --name kessoku
 
 > `/festival` nécessite `SITE_API_URL` + `SITE_API_TOKEN` (= `SERVICE_TOKEN` du backend).
 
+## Bénévoles
+- `/benevole inscription` — ouvre un **formulaire** (poste, dispos, téléphone, notes) ; l'inscription
+  est écrite **en temps réel** dans l'espace bénévoles du site (sous le prochain événement).
+- `/benevole retrait` — retire son inscription.
+
+> Nécessite `SITE_API_URL` + `SITE_API_TOKEN` (= `SERVICE_TOKEN` du backend), comme `/festival`.
+
 ## Accueil & annonces
 - `/accueil salon #salon` — message de bienvenue (embed + infos événement) à l'arrivée d'un membre.
   `/accueil apercu` pour prévisualiser, `/accueil off` pour désactiver.

@@ -9,6 +9,7 @@ import {
   ADD_PREFIX,
   REMOVE_PREFIX,
 } from '../commands/reactionrole.js'
+import { handleBenevoleModal, MODAL_ID } from '../commands/benevole.js'
 
 export async function onInteraction(
   interaction: Interaction,
@@ -54,5 +55,11 @@ export async function onInteraction(
     await handleReactionRemoveSelect(interaction).catch((err) =>
       console.error('[reactionrole:remove]', err),
     )
+    return
+  }
+
+  // Formulaire (modal) d'inscription bénévole
+  if (interaction.isModalSubmit() && interaction.customId === MODAL_ID) {
+    await handleBenevoleModal(interaction).catch((err) => console.error('[benevole:modal]', err))
   }
 }

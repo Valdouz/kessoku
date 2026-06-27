@@ -177,6 +177,67 @@ app.get('/api/artistes', serviceAuth, (_req, res) => {
   res.json({ event: ev.data.festival.name, artists })
 })
 
+// ── Bénévoles : auto-inscription depuis le bot Discord ───────────────────────
+// Applique une op à la room canonique ET la diffuse en temps réel aux clients web.
+function applyAndBroadcast(room, ops) {
+  const root = getRoot(room)
+  root.events = applyOpsToEvents(root.events, ops)
+  schedulePersist(room)
+  const clients = rooms.get(room)
+  if (clients) {
+    for (const c of clients.values()) {
+      const visible = filterOps(ops, c.ws.allowed)
+      if (visible.length) safeSend(c.ws, JSON.stringify({ t: 'ops', ops: visible }))
+    }
+  }
+}
+
+// Inscription / mise à jour d'un·e bénévole (id déterministe par compte Discord).
+app.post('/api/volunteer', serviceAuth, (req, res) => {
+  const b = req.body || {}
+  const discordId = String(b.discordId || '').trim()
+  const name = String(b.name || '').trim()
+  if (!discordId || !name) return res.status(400).json({ error: 'discordId et name requis.' })
+  const root = getRoot('main')
+  const ev = b.eventId ? root.events.find((e) => e.id === b.eventId) : nextEvent('main')
+  if (!ev) return res.status(404).json({ error: 'Aucun événement cible.' })
+
+  const now = new Date().toISOString()
+  const id = `vol-dc-${discordId}`
+  const existing = (ev.data.volunteers || []).find((v) => v.id === id)
+  const volunteer = {
+    id,
+    name,
+    poste: String(b.poste || '').slice(0, 200),
+    availability: String(b.availability || '').slice(0, 400),
+    status: (existing && existing.status) || 'pressenti',
+    phone: String(b.phone || '').slice(0, 60),
+    email: (existing && existing.email) || '',
+    referent: (existing && existing.referent) || '',
+    mealIncluded: existing ? existing.mealIncluded : false,
+    notes: String(b.notes || (existing && existing.notes) || '').slice(0, 500),
+    createdAt: (existing && existing.createdAt) || now,
+    updatedAt: now,
+  }
+  applyAndBroadcast('main', [
+    { kind: 'upsert', coll: 'volunteers', eventId: ev.id, id, updatedAt: now, payload: volunteer },
+  ])
+  res.json({ ok: true, event: ev.data.festival.name, updated: Boolean(existing) })
+})
+
+// Retrait : supprime l'inscription bénévole liée à ce compte Discord (tous événements).
+app.delete('/api/volunteer', serviceAuth, (req, res) => {
+  const discordId = String((req.body || {}).discordId || '').trim()
+  if (!discordId) return res.status(400).json({ error: 'discordId requis.' })
+  const id = `vol-dc-${discordId}`
+  const now = new Date().toISOString()
+  const ops = getRoot('main').events
+    .filter((ev) => (ev.data.volunteers || []).some((v) => v.id === id))
+    .map((ev) => ({ kind: 'delete', coll: 'volunteers', eventId: ev.id, id, updatedAt: now }))
+  if (ops.length) applyAndBroadcast('main', ops)
+  res.json({ ok: true, removed: ops.length > 0 })
+})
+
 app.post('/api/login', loginThrottle, (req, res) => {
   const { username, password } = req.body || {}
   const user = username && getUserByUsername(String(username).trim())
