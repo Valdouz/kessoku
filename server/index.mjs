@@ -90,6 +90,26 @@ function loginThrottle(req, res, next) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
+// Prochain événement à venir (pour le bot Discord). Protégé par SERVICE_TOKEN ;
+// désactivé tant que ce secret n'est pas défini (aucune fuite par défaut).
+app.get('/api/next-event', (req, res) => {
+  const expected = process.env.SERVICE_TOKEN
+  if (!expected) return res.status(503).json({ error: 'Endpoint désactivé.' })
+  const h = req.headers.authorization || ''
+  const token = h.startsWith('Bearer ') ? h.slice(7) : ''
+  if (token !== expected) return res.status(401).json({ error: 'Non autorisé.' })
+
+  const root = getRoot('main')
+  const today = new Date().toISOString().slice(0, 10)
+  const upcoming = root.events
+    .map((e) => e.data && e.data.festival)
+    .filter((f) => f && f.date && f.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const next = upcoming[0]
+  if (!next) return res.status(404).json({ error: 'Aucun événement à venir.' })
+  res.json({ name: next.name, date: next.date, kind: next.kind })
+})
+
 app.post('/api/login', loginThrottle, (req, res) => {
   const { username, password } = req.body || {}
   const user = username && getUserByUsername(String(username).trim())
