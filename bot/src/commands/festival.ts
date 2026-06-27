@@ -6,15 +6,9 @@ import {
 } from 'discord.js'
 import type { Command } from '../lib/command.js'
 import { siteApi, siteApiConfigured } from '../lib/siteApi.js'
-
-const ACCENT = 0xff2e85
+import { ACCENT, frDate, type EventInfo } from '../lib/event.js'
 
 // ── Réponses de l'API du site ────────────────────────────────────────────────
-interface EventInfo {
-  name: string; edition: string; kind: string; date: string
-  startTime: string; endTime: string; crewAccessTime: string; loadInDeadline: string
-  venue: string; city: string; context: string; description: string
-}
 interface Programme {
   event: string; date: string
   slots: { title: string; type: string; startTime: string; durationMin: number; stage: string; artist: string | null }[]
@@ -39,12 +33,6 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const SLOT_EMOJI: Record<string, string> = {
   scene: '🎤', danse: '💃', dj: '🎧', pause: '⏸️', technique: '🔧', discours: '🗣️', autre: '•',
-}
-
-function frDate(iso: string): string {
-  const d = new Date(iso + (iso.length <= 10 ? 'T00:00:00' : ''))
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export const command: Command = {

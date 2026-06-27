@@ -37,10 +37,22 @@ db.exec(`
   );
 `)
 
+// Migrations additives idempotentes (colonnes ajoutées après coup).
+function ensureColumn(table: string, column: string, decl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${decl}`)
+}
+ensureColumn('guild_settings', 'welcome_channel_id', 'welcome_channel_id TEXT')
+ensureColumn('guild_settings', 'announce_channel_id', 'announce_channel_id TEXT')
+ensureColumn('guild_settings', 'last_reminder', 'last_reminder TEXT')
+
 export interface GuildSettings {
   guild_id: string
   autorole_id: string | null
   autorole_emoji: string | null
+  welcome_channel_id: string | null
+  announce_channel_id: string | null
+  last_reminder: string | null
   updated_at: string
 }
 
@@ -48,6 +60,29 @@ export function getGuild(guildId: string): GuildSettings | undefined {
   return db.prepare('SELECT * FROM guild_settings WHERE guild_id = ?').get(guildId) as
     | GuildSettings
     | undefined
+}
+
+// Met à jour UN champ de guild_settings (crée la ligne au besoin).
+function setField(guildId: string, column: string, value: string | null): void {
+  const now = new Date().toISOString()
+  db.prepare(
+    `INSERT INTO guild_settings (guild_id, ${column}, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET ${column} = excluded.${column}, updated_at = excluded.updated_at`,
+  ).run(guildId, value, now)
+}
+
+export const setWelcomeChannel = (guildId: string, channelId: string | null): void =>
+  setField(guildId, 'welcome_channel_id', channelId)
+export const setAnnounceChannel = (guildId: string, channelId: string | null): void =>
+  setField(guildId, 'announce_channel_id', channelId)
+export const setLastReminder = (guildId: string, value: string | null): void =>
+  setField(guildId, 'last_reminder', value)
+
+/** Guildes ayant un salon d'annonces configuré (pour le planificateur de rappels). */
+export function listAnnounceGuilds(): { guild_id: string; announce_channel_id: string; last_reminder: string | null }[] {
+  return db
+    .prepare('SELECT guild_id, announce_channel_id, last_reminder FROM guild_settings WHERE announce_channel_id IS NOT NULL')
+    .all() as { guild_id: string; announce_channel_id: string; last_reminder: string | null }[]
 }
 
 export function setAutorole(guildId: string, roleId: string, emoji: string | null): void {
