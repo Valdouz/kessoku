@@ -42,6 +42,14 @@ npm start                 # ou via PM2 :  pm2 start dist/index.js --name kessoku
 
 > `/festival` nécessite `SITE_API_URL` + `SITE_API_TOKEN` (= `SERVICE_TOKEN` du backend).
 
+## Lier son compte Kessoku (depuis Discord)
+- `/compte lier` — formulaire (identifiant + mot de passe Kessoku) ; rattache ton compte du site
+  à ton Discord. Ensuite, connexion au site en un clic via « Se connecter avec Discord ».
+- `/compte statut` — indique si ton Discord est lié, et à quel compte.
+- `/compte delier` — détache ton compte.
+
+> Vérification serveur (anti-bruteforce) ; le mot de passe n'est ni stocké ni journalisé.
+
 ## Bénévoles
 - `/benevole inscription` — ouvre un **formulaire** (poste, dispos, téléphone, notes) ; l'inscription
   est écrite **en temps réel** dans l'espace bénévoles du site (sous le prochain événement).

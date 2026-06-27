@@ -331,10 +331,46 @@ app.post('/api/auth/discord/claim', (req, res) => {
   res.json({ token: signToken(u), user: { id: u.id, username: u.username, role: u.role, discordId: u.discord_id || null } })
 })
 
-// Délier son compte Discord.
+// Délier son compte Discord (depuis le site).
 app.delete('/api/auth/discord/link', authMiddleware, (req, res) => {
   clearDiscordId(req.user.id)
   res.json({ ok: true })
+})
+
+// ── Liaison initiée DEPUIS Discord (le bot fournit discordId + identifiants) ──
+// Lier un compte Kessoku à un Discord en vérifiant identifiant + mot de passe.
+app.post('/api/discord/link-credentials', serviceAuth, (req, res) => {
+  const b = req.body || {}
+  const discordId = String(b.discordId || '').trim()
+  const username = String(b.username || '').trim()
+  const password = String(b.password || '')
+  if (!discordId || !username || !password) return res.status(400).json({ error: 'Champs requis.' })
+  if (!bump(`dlink:${discordId}`, 6)) return res.status(429).json({ error: 'Trop d’essais, réessaie dans une minute.' })
+  const user = getUserByUsername(username)
+  if (!user || !verifyPassword(password, user.password_hash)) {
+    return res.status(401).json({ error: 'Identifiants Kessoku invalides.' })
+  }
+  const already = getUserByDiscordId(discordId)
+  if (already && already.id !== user.id) {
+    return res.status(409).json({ error: 'Ce Discord est déjà lié à un autre compte.' })
+  }
+  setDiscordId(user.id, discordId)
+  res.json({ ok: true, username: user.username })
+})
+
+// Statut de liaison d'un Discord.
+app.get('/api/discord/linked', serviceAuth, (req, res) => {
+  const discordId = String(req.query.discordId || '').trim()
+  const u = discordId ? getUserByDiscordId(discordId) : null
+  res.json({ linked: Boolean(u), username: u ? u.username : null })
+})
+
+// Délier depuis Discord.
+app.post('/api/discord/unlink', serviceAuth, (req, res) => {
+  const discordId = String((req.body || {}).discordId || '').trim()
+  const u = discordId ? getUserByDiscordId(discordId) : null
+  if (u) clearDiscordId(u.id)
+  res.json({ ok: true, removed: Boolean(u) })
 })
 
 app.get('/api/me', authMiddleware, (req, res) => {

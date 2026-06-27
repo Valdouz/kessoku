@@ -10,6 +10,7 @@ import {
   REMOVE_PREFIX,
 } from '../commands/reactionrole.js'
 import { handleBenevoleModal, MODAL_ID } from '../commands/benevole.js'
+import { handleCompteLinkModal, LINK_MODAL_ID } from '../commands/compte.js'
 
 export async function onInteraction(
   interaction: Interaction,
@@ -58,8 +59,12 @@ export async function onInteraction(
     return
   }
 
-  // Formulaire (modal) d'inscription bénévole
-  if (interaction.isModalSubmit() && interaction.customId === MODAL_ID) {
-    await handleBenevoleModal(interaction).catch((err) => console.error('[benevole:modal]', err))
+  // Formulaires (modals)
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === MODAL_ID) {
+      await handleBenevoleModal(interaction).catch((err) => console.error('[benevole:modal]', err))
+    } else if (interaction.customId === LINK_MODAL_ID) {
+      await handleCompteLinkModal(interaction).catch((err) => console.error('[compte:modal]', err))
+    }
   }
 }
