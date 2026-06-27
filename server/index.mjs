@@ -6,7 +6,12 @@
 
 import express from 'express'
 import http from 'node:http'
+import dns from 'node:dns'
 import { WebSocketServer } from 'ws'
+
+// En conteneur, undici peut « pendre » sur une tentative IPv6 sans route (appels
+// sortants vers discord.com). On privilégie l'IPv4 pour éviter ce blocage.
+dns.setDefaultResultOrder('ipv4first')
 import { randomBytes } from 'node:crypto'
 import {
   seedAdmin, getUserByUsername, getUserById, listUsers, createUser, deleteUser,
