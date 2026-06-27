@@ -27,6 +27,12 @@ function dist(a: [number, number, number], b: [number, number, number]): number 
   return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
 }
 
+/** Position d'un cœur dans la palette (pour un affichage trié « arc-en-ciel »). */
+export function heartIndex(emoji: string): number {
+  const i = HEARTS.findIndex((h) => h.emoji === emoji)
+  return i === -1 ? HEARTS.length : i
+}
+
 /** Cœur le plus proche de la couleur du rôle (color = 0xRRGGBB ; 0 = sans couleur). */
 export function heartForColor(color: number): Heart {
   if (!color) return WHITE

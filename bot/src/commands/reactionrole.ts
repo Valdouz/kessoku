@@ -26,7 +26,7 @@ import {
   setRoleEmoji,
   type ReactionPanel,
 } from '../db.js'
-import { suggestHeart } from '../lib/hearts.js'
+import { suggestHeart, heartIndex } from '../lib/hearts.js'
 import { normalizeEmoji } from '../lib/emoji.js'
 
 const ACCENT = 0xff2e85
@@ -101,7 +101,9 @@ export const command: Command = {
 // ── Rendu du panneau ─────────────────────────────────────────────────────────
 /** Construit l'embed du panneau (titre/description + liste des rôles à jour). */
 export function renderPanelEmbed(panel: ReactionPanel): EmbedBuilder {
-  const roles = listReactionRoles(panel.message_id)
+  const roles = listReactionRoles(panel.message_id).sort(
+    (a, b) => heartIndex(a.emoji) - heartIndex(b.emoji),
+  )
   const lines = roles.length
     ? roles.map((r) => `${r.emoji} ${roleMention(r.role_id)}`).join('\n')
     : '_Aucun rôle pour l’instant._'
@@ -156,9 +158,10 @@ async function applyRolesToMessage(
     added.push({ roleId: role.id, emoji, assignable: role.position < me.roles.highest.position })
   }
 
-  // Pose les réactions puis met l'embed à jour (lit la liste fraîche en base).
-  for (const a of added) await message.react(a.emoji).catch(() => {})
+  // Met l'embed à jour, puis pose les réactions dans l'ordre de la palette (arc-en-ciel).
   await message.edit({ embeds: [renderPanelEmbed(getPanel(panel.message_id) ?? panel)] }).catch(() => {})
+  added.sort((a, b) => heartIndex(a.emoji) - heartIndex(b.emoji))
+  for (const a of added) await message.react(a.emoji).catch(() => {})
 
   return { added, ranOut }
 }
@@ -238,10 +241,12 @@ async function doPanel(interaction: ChatInputCommandInteraction) {
 // Étape 2 : rôles choisis → le bot écrit le message complet.
 export async function handleReactionCreateSelect(interaction: RoleSelectMenuInteraction) {
   if (!interaction.guild) return
+  // Poser plusieurs réactions prend > 3 s : on acquitte tout de suite (sinon « Unknown interaction »).
+  await interaction.deferUpdate()
   const draft = pending.get(interaction.customId.slice(CREATE_PREFIX.length))
   pending.delete(interaction.customId.slice(CREATE_PREFIX.length))
   if (!draft) {
-    await interaction.update({
+    await interaction.editReply({
       content: 'Cette création a expiré. Relance `/reactionrole panel`.',
       embeds: [],
       components: [],
@@ -251,7 +256,7 @@ export async function handleReactionCreateSelect(interaction: RoleSelectMenuInte
 
   const channel = await interaction.guild.channels.fetch(draft.channelId).catch(() => null)
   if (!channel || !channel.isTextBased()) {
-    await interaction.update({ content: 'Salon introuvable.', embeds: [], components: [] })
+    await interaction.editReply({ content: 'Salon introuvable.', embeds: [], components: [] })
     return
   }
 
@@ -275,7 +280,8 @@ export async function handleReactionCreateSelect(interaction: RoleSelectMenuInte
     interaction.values,
   )
 
-  await interaction.update({
+  await interaction.editReply({
+    content: '',
     embeds: [summaryEmbed(added, ranOut, message.url)],
     components: [],
   })
@@ -311,10 +317,11 @@ async function doAdd(interaction: ChatInputCommandInteraction) {
 
 export async function handleReactionAddSelect(interaction: RoleSelectMenuInteraction) {
   if (!interaction.guild) return
+  await interaction.deferUpdate()
   const messageId = interaction.customId.slice(ADD_PREFIX.length)
   const panel = getPanel(messageId)
   if (!panel) {
-    await interaction.update({ content: 'Panneau introuvable.', embeds: [], components: [] })
+    await interaction.editReply({ content: 'Panneau introuvable.', embeds: [], components: [] })
     return
   }
   const channel = await interaction.guild.channels.fetch(panel.channel_id).catch(() => null)
@@ -323,7 +330,7 @@ export async function handleReactionAddSelect(interaction: RoleSelectMenuInterac
       ? await channel.messages.fetch(messageId).catch(() => null)
       : null
   if (!message) {
-    await interaction.update({
+    await interaction.editReply({
       content: 'Message du panneau introuvable (supprimé ?).',
       embeds: [],
       components: [],
@@ -337,7 +344,8 @@ export async function handleReactionAddSelect(interaction: RoleSelectMenuInterac
     panel,
     interaction.values,
   )
-  await interaction.update({
+  await interaction.editReply({
+    content: '',
     embeds: [summaryEmbed(added, ranOut, message.url)],
     components: [],
   })
@@ -381,10 +389,11 @@ async function doRemove(interaction: ChatInputCommandInteraction) {
 
 export async function handleReactionRemoveSelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.guild) return
+  await interaction.deferUpdate()
   const messageId = interaction.customId.slice(REMOVE_PREFIX.length)
   const panel = getPanel(messageId)
   if (!panel) {
-    await interaction.update({ content: 'Panneau introuvable.', embeds: [], components: [] })
+    await interaction.editReply({ content: 'Panneau introuvable.', embeds: [], components: [] })
     return
   }
   const roleId = interaction.values[0]
@@ -409,7 +418,7 @@ export async function handleReactionRemoveSelect(interaction: StringSelectMenuIn
     .setColor(ACCENT)
     .setTitle('🗑️ Rôle retiré')
     .setDescription(`${emoji ? `${emoji} ` : ''}${roleMention(roleId)} n’est plus dans le panneau.`)
-  await interaction.update({ embeds: [embed], components: [] })
+  await interaction.editReply({ content: '', embeds: [embed], components: [] })
 }
 
 // ── /reactionrole list ───────────────────────────────────────────────────────
