@@ -1,6 +1,12 @@
 import { MessageFlags, type Collection, type Interaction, type InteractionReplyOptions } from 'discord.js'
 import type { Command } from '../lib/command.js'
 import { handleAutoroleSelect, SELECT_ID } from '../commands/autorole.js'
+import {
+  handleReactionAddSelect,
+  handleReactionRemoveSelect,
+  ADD_PREFIX,
+  REMOVE_PREFIX,
+} from '../commands/reactionrole.js'
 
 export async function onInteraction(
   interaction: Interaction,
@@ -27,10 +33,20 @@ export async function onInteraction(
     return
   }
 
-  // Composants (menu de sélection de rôle de l'autorole)
-  if (interaction.isRoleSelectMenu() && interaction.customId === SELECT_ID) {
-    await handleAutoroleSelect(interaction).catch((err) => {
-      console.error('[autorole:select]', err)
-    })
+  // Composants (menus de sélection)
+  if (interaction.isRoleSelectMenu()) {
+    if (interaction.customId === SELECT_ID) {
+      await handleAutoroleSelect(interaction).catch((err) => console.error('[autorole:select]', err))
+    } else if (interaction.customId.startsWith(ADD_PREFIX)) {
+      await handleReactionAddSelect(interaction).catch((err) =>
+        console.error('[reactionrole:add]', err),
+      )
+    }
+    return
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(REMOVE_PREFIX)) {
+    await handleReactionRemoveSelect(interaction).catch((err) =>
+      console.error('[reactionrole:remove]', err),
+    )
   }
 }

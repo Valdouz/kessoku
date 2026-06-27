@@ -21,6 +21,20 @@ db.exec(`
     emoji TEXT NOT NULL,
     PRIMARY KEY (guild_id, role_id)
   );
+  CREATE TABLE IF NOT EXISTS reaction_panels (
+    message_id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS reaction_roles (
+    message_id TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    PRIMARY KEY (message_id, emoji)
+  );
 `)
 
 export interface GuildSettings {
@@ -69,4 +83,81 @@ export function getUsedEmojis(guildId: string, exceptRoleId?: string): Set<strin
     .prepare('SELECT role_id, emoji FROM role_emojis WHERE guild_id = ?')
     .all(guildId) as { role_id: string; emoji: string }[]
   return new Set(rows.filter((r) => r.role_id !== exceptRoleId).map((r) => r.emoji))
+}
+
+/** Mémorise l'émoji « cœur » associé à un rôle (cohérence entre autorole et reaction roles). */
+export function setRoleEmoji(guildId: string, roleId: string, emoji: string): void {
+  db.prepare(
+    `INSERT INTO role_emojis (guild_id, role_id, emoji) VALUES (?, ?, ?)
+     ON CONFLICT(guild_id, role_id) DO UPDATE SET emoji = excluded.emoji`,
+  ).run(guildId, roleId, emoji)
+}
+
+// ── Reaction roles ───────────────────────────────────────────────────────────
+export interface ReactionPanel {
+  message_id: string
+  guild_id: string
+  channel_id: string
+  title: string | null
+  description: string | null
+  created_at: string
+}
+export interface ReactionRole {
+  message_id: string
+  emoji: string
+  role_id: string
+}
+
+export function createPanel(
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  title: string | null,
+  description: string | null,
+): void {
+  db.prepare(
+    `INSERT INTO reaction_panels (message_id, guild_id, channel_id, title, description, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(messageId, guildId, channelId, title, description, new Date().toISOString())
+}
+
+/** Dernier panneau créé dans un salon (cible par défaut de /reactionrole add). */
+export function latestPanelInChannel(guildId: string, channelId: string): ReactionPanel | undefined {
+  return db
+    .prepare(
+      `SELECT * FROM reaction_panels WHERE guild_id = ? AND channel_id = ?
+       ORDER BY created_at DESC LIMIT 1`,
+    )
+    .get(guildId, channelId) as ReactionPanel | undefined
+}
+
+export function getPanel(messageId: string): ReactionPanel | undefined {
+  return db.prepare('SELECT * FROM reaction_panels WHERE message_id = ?').get(messageId) as
+    | ReactionPanel
+    | undefined
+}
+
+export function addReactionRole(messageId: string, emoji: string, roleId: string): void {
+  db.prepare(
+    `INSERT INTO reaction_roles (message_id, emoji, role_id) VALUES (?, ?, ?)
+     ON CONFLICT(message_id, emoji) DO UPDATE SET role_id = excluded.role_id`,
+  ).run(messageId, emoji, roleId)
+}
+
+export function listReactionRoles(messageId: string): ReactionRole[] {
+  return db
+    .prepare('SELECT * FROM reaction_roles WHERE message_id = ?')
+    .all(messageId) as ReactionRole[]
+}
+
+export function removeReactionRoleByRole(messageId: string, roleId: string): string | undefined {
+  const row = db
+    .prepare('SELECT emoji FROM reaction_roles WHERE message_id = ? AND role_id = ?')
+    .get(messageId, roleId) as { emoji: string } | undefined
+  if (row) db.prepare('DELETE FROM reaction_roles WHERE message_id = ? AND role_id = ?').run(messageId, roleId)
+  return row?.emoji
+}
+
+export function panelEmojis(messageId: string): Set<string> {
+  return new Set(listReactionRoles(messageId).map((r) => r.emoji))
 }
