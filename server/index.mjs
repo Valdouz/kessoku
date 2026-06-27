@@ -90,24 +90,83 @@ function loginThrottle(req, res, next) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
-// Prochain événement à venir (pour le bot Discord). Protégé par SERVICE_TOKEN ;
-// désactivé tant que ce secret n'est pas défini (aucune fuite par défaut).
-app.get('/api/next-event', (req, res) => {
+// ── Endpoints « service » pour le bot Discord ────────────────────────────────
+// Protégés par SERVICE_TOKEN ; désactivés tant que ce secret n'est pas défini
+// (aucune fuite par défaut). Lecture seule sur le prochain événement à venir.
+function serviceAuth(req, res, next) {
   const expected = process.env.SERVICE_TOKEN
   if (!expected) return res.status(503).json({ error: 'Endpoint désactivé.' })
   const h = req.headers.authorization || ''
   const token = h.startsWith('Bearer ') ? h.slice(7) : ''
   if (token !== expected) return res.status(401).json({ error: 'Non autorisé.' })
+  next()
+}
 
-  const root = getRoot('main')
+// Prochain événement à venir (date >= aujourd'hui), avec toutes ses données.
+function nextEvent(room = 'main') {
+  const root = getRoot(room)
   const today = new Date().toISOString().slice(0, 10)
-  const upcoming = root.events
-    .map((e) => e.data && e.data.festival)
-    .filter((f) => f && f.date && f.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))
-  const next = upcoming[0]
-  if (!next) return res.status(404).json({ error: 'Aucun événement à venir.' })
-  res.json({ name: next.name, date: next.date, kind: next.kind })
+  return root.events
+    .filter((e) => e.data && e.data.festival && e.data.festival.date && e.data.festival.date >= today)
+    .sort((a, b) => a.data.festival.date.localeCompare(b.data.festival.date))[0]
+}
+
+app.get('/api/next-event', serviceAuth, (_req, res) => {
+  const ev = nextEvent()
+  if (!ev) return res.status(404).json({ error: 'Aucun événement à venir.' })
+  const f = ev.data.festival
+  res.json({ name: f.name, date: f.date, kind: f.kind })
+})
+
+// Fiche détaillée du prochain événement.
+app.get('/api/event-info', serviceAuth, (_req, res) => {
+  const ev = nextEvent()
+  if (!ev) return res.status(404).json({ error: 'Aucun événement à venir.' })
+  const f = ev.data.festival
+  res.json({
+    name: f.name, edition: f.edition, kind: f.kind, date: f.date,
+    startTime: f.startTime, endTime: f.endTime,
+    crewAccessTime: f.crewAccessTime, loadInDeadline: f.loadInDeadline,
+    venue: f.venue, city: f.city, context: f.context, description: f.description,
+  })
+})
+
+// Déroulé du jour (conducteur), trié, avec le nom de l'artiste résolu.
+app.get('/api/programme', serviceAuth, (_req, res) => {
+  const ev = nextEvent()
+  if (!ev) return res.status(404).json({ error: 'Aucun événement à venir.' })
+  const artists = ev.data.artists || []
+  const byId = new Map(artists.map((a) => [a.id, a.name]))
+  const slots = [...(ev.data.slots || [])]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || String(a.startTime).localeCompare(String(b.startTime)))
+    .map((s) => ({
+      title: s.title, type: s.type, startTime: s.startTime, durationMin: s.durationMin,
+      stage: s.stage, artist: s.artistId ? byId.get(s.artistId) || null : null,
+    }))
+  res.json({ event: ev.data.festival.name, date: ev.data.festival.date, slots })
+})
+
+// Feuille de contacts (équipe). Données potentiellement sensibles : usage interne.
+app.get('/api/contacts', serviceAuth, (_req, res) => {
+  const ev = nextEvent()
+  if (!ev) return res.status(404).json({ error: 'Aucun événement à venir.' })
+  const members = (ev.data.members || []).map((m) => ({
+    name: m.name, roles: m.roles && m.roles.length ? m.roles : m.role ? [m.role] : [],
+    org: m.org, phone: m.phone, email: m.email, isPartner: m.isPartner,
+  }))
+  res.json({ event: ev.data.festival.name, members })
+})
+
+// Liste des artistes (programmation).
+app.get('/api/artistes', serviceAuth, (_req, res) => {
+  const ev = nextEvent()
+  if (!ev) return res.status(404).json({ error: 'Aucun événement à venir.' })
+  const artists = (ev.data.artists || []).map((a) => ({
+    name: a.name, kind: a.kind, status: a.status, members: a.members,
+    setDurationMin: a.setDurationMin, soundcheckTime: a.soundcheckTime,
+    arrivalTime: a.arrivalTime, partySize: a.partySize,
+  }))
+  res.json({ event: ev.data.festival.name, artists })
 })
 
 app.post('/api/login', loginThrottle, (req, res) => {

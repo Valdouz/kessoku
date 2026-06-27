@@ -35,6 +35,12 @@ npm start                 # ou via PM2 :  pm2 start dist/index.js --name kessoku
 
 ## Commandes
 - `/ping` — vérifie que le bot répond.
+- `/festival infos` — date, horaires, lieu du prochain événement (lu sur le site).
+- `/festival programme` — le déroulé du jour (conducteur).
+- `/festival artistes` — la programmation artistique.
+- `/festival contacts` — feuille de contacts de l'équipe (réservé *Gérer le serveur*, en éphémère).
+
+> `/festival` nécessite `SITE_API_URL` + `SITE_API_TOKEN` (= `SERVICE_TOKEN` du backend).
 - `/autorole set` — ouvre un **sélecteur de rôle** ; le rôle choisi est attribué automatiquement
   aux nouveaux membres. Le bot **propose un émoji cœur à la couleur du rôle** (s'il n'est pas déjà pris).
 - `/autorole status` — affiche la configuration.
