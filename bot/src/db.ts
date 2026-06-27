@@ -85,14 +85,6 @@ export function getUsedEmojis(guildId: string, exceptRoleId?: string): Set<strin
   return new Set(rows.filter((r) => r.role_id !== exceptRoleId).map((r) => r.emoji))
 }
 
-/** Mémorise l'émoji « cœur » associé à un rôle (cohérence entre autorole et reaction roles). */
-export function setRoleEmoji(guildId: string, roleId: string, emoji: string): void {
-  db.prepare(
-    `INSERT INTO role_emojis (guild_id, role_id, emoji) VALUES (?, ?, ?)
-     ON CONFLICT(guild_id, role_id) DO UPDATE SET emoji = excluded.emoji`,
-  ).run(guildId, roleId, emoji)
-}
-
 // ── Reaction roles ───────────────────────────────────────────────────────────
 export interface ReactionPanel {
   message_id: string

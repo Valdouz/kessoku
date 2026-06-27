@@ -20,24 +20,53 @@ export const HEARTS: Heart[] = [
 
 const WHITE = HEARTS[HEARTS.length - 1]
 
+// Replis quand les cœurs d'un panneau sont épuisés : ronds puis carrés, mêmes teintes.
+const CIRCLES: Heart[] = [
+  { emoji: '🔴', rgb: [220, 40, 40] },
+  { emoji: '🟠', rgb: [245, 135, 35] },
+  { emoji: '🟡', rgb: [253, 203, 40] },
+  { emoji: '🟢', rgb: [60, 180, 75] },
+  { emoji: '🔵', rgb: [45, 120, 220] },
+  { emoji: '🟣', rgb: [155, 89, 182] },
+  { emoji: '🟤', rgb: [121, 80, 55] },
+  { emoji: '⚫', rgb: [35, 39, 42] },
+  { emoji: '⚪', rgb: [255, 255, 255] },
+]
+const SQUARES: Heart[] = [
+  { emoji: '🟥', rgb: [220, 40, 40] },
+  { emoji: '🟧', rgb: [245, 135, 35] },
+  { emoji: '🟨', rgb: [253, 203, 40] },
+  { emoji: '🟩', rgb: [60, 180, 75] },
+  { emoji: '🟦', rgb: [45, 120, 220] },
+  { emoji: '🟪', rgb: [155, 89, 182] },
+  { emoji: '🟫', rgb: [121, 80, 55] },
+  { emoji: '⬛', rgb: [35, 39, 42] },
+  { emoji: '⬜', rgb: [255, 255, 255] },
+]
+// Groupes par ordre de préférence ; palette plate pour le tri d'affichage.
+const GROUPS: Heart[][] = [HEARTS, CIRCLES, SQUARES]
+const PALETTE: Heart[] = GROUPS.flat()
+
 function toRgb(color: number): [number, number, number] {
   return [(color >> 16) & 255, (color >> 8) & 255, color & 255]
 }
 function dist(a: [number, number, number], b: [number, number, number]): number {
   return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
 }
+function nearest(group: Heart[], rgb: [number, number, number]): Heart {
+  return group.reduce((best, h) => (dist(h.rgb, rgb) < dist(best.rgb, rgb) ? h : best))
+}
 
-/** Position d'un cœur dans la palette (pour un affichage trié « arc-en-ciel »). */
-export function heartIndex(emoji: string): number {
-  const i = HEARTS.findIndex((h) => h.emoji === emoji)
-  return i === -1 ? HEARTS.length : i
+/** Position d'un émoji dans la palette (pour un affichage trié « arc-en-ciel »). */
+export function emojiIndex(emoji: string): number {
+  const i = PALETTE.findIndex((h) => h.emoji === emoji)
+  return i === -1 ? PALETTE.length : i
 }
 
 /** Cœur le plus proche de la couleur du rôle (color = 0xRRGGBB ; 0 = sans couleur). */
 export function heartForColor(color: number): Heart {
   if (!color) return WHITE
-  const rgb = toRgb(color)
-  return HEARTS.reduce((best, h) => (dist(h.rgb, rgb) < dist(best.rgb, rgb) ? h : best))
+  return nearest(HEARTS, toRgb(color))
 }
 
 /**
@@ -48,8 +77,19 @@ export function suggestHeart(color: number, used: Set<string>): string {
   const first = heartForColor(color)
   if (!used.has(first.emoji)) return first.emoji
   const rgb = color ? toRgb(color) : WHITE.rgb
-  const free = HEARTS.filter((h) => !used.has(h.emoji)).sort(
-    (a, b) => dist(a.rgb, rgb) - dist(b.rgb, rgb),
-  )
-  return free[0]?.emoji ?? ''
+  const free = HEARTS.filter((h) => !used.has(h.emoji))
+  return free.length ? nearest(free, rgb).emoji : ''
+}
+
+/**
+ * Propose un émoji à la couleur du rôle, unique dans `used`.
+ * Cœurs d'abord, puis ronds, puis carrés — donc ça « marche toujours ».
+ */
+export function suggestEmoji(color: number, used: Set<string>): string {
+  const rgb = color ? toRgb(color) : WHITE.rgb
+  for (const group of GROUPS) {
+    const free = group.filter((h) => !used.has(h.emoji))
+    if (free.length) return nearest(free, rgb).emoji
+  }
+  return ''
 }

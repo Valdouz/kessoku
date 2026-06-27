@@ -22,11 +22,9 @@ import {
   removeReactionRoleByRole,
   listReactionRoles,
   panelEmojis,
-  getUsedEmojis,
-  setRoleEmoji,
   type ReactionPanel,
 } from '../db.js'
-import { suggestHeart, heartIndex } from '../lib/hearts.js'
+import { suggestEmoji, emojiIndex } from '../lib/hearts.js'
 import { normalizeEmoji } from '../lib/emoji.js'
 
 const ACCENT = 0xff2e85
@@ -102,7 +100,7 @@ export const command: Command = {
 /** Construit l'embed du panneau (titre/description + liste des rôles à jour). */
 export function renderPanelEmbed(panel: ReactionPanel): EmbedBuilder {
   const roles = listReactionRoles(panel.message_id).sort(
-    (a, b) => heartIndex(a.emoji) - heartIndex(b.emoji),
+    (a, b) => emojiIndex(a.emoji) - emojiIndex(b.emoji),
   )
   const lines = roles.length
     ? roles.map((r) => `${r.emoji} ${roleMention(r.role_id)}`).join('\n')
@@ -137,7 +135,9 @@ async function applyRolesToMessage(
 ): Promise<{ added: { roleId: string; emoji: string; assignable: boolean }[]; ranOut: boolean }> {
   const me = await guild.members.fetchMe()
   const existing = new Set(listReactionRoles(panel.message_id).map((r) => r.role_id))
-  const used = new Set<string>([...getUsedEmojis(guild.id), ...panelEmojis(panel.message_id)])
+  // Unicité des cœurs au périmètre du PANNEAU : une réaction = un émoji par message
+  // (le même cœur peut resservir sur un autre panneau). La couleur du rôle reste déterministe.
+  const used = new Set<string>(panelEmojis(panel.message_id))
 
   const added: { roleId: string; emoji: string; assignable: boolean }[] = []
   let ranOut = false
@@ -147,20 +147,19 @@ async function applyRolesToMessage(
     const role = guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId).catch(() => null))
     if (!role || role.id === guild.id || role.managed) continue
 
-    const emoji = suggestHeart(role.color, used)
+    const emoji = suggestEmoji(role.color, used)
     if (!emoji) {
       ranOut = true
       break
     }
     used.add(emoji)
     addReactionRole(panel.message_id, emoji, role.id)
-    setRoleEmoji(guild.id, role.id, emoji)
     added.push({ roleId: role.id, emoji, assignable: role.position < me.roles.highest.position })
   }
 
   // Met l'embed à jour, puis pose les réactions dans l'ordre de la palette (arc-en-ciel).
   await message.edit({ embeds: [renderPanelEmbed(getPanel(panel.message_id) ?? panel)] }).catch(() => {})
-  added.sort((a, b) => heartIndex(a.emoji) - heartIndex(b.emoji))
+  added.sort((a, b) => emojiIndex(a.emoji) - emojiIndex(b.emoji))
   for (const a of added) await message.react(a.emoji).catch(() => {})
 
   return { added, ranOut }
