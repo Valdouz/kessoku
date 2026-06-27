@@ -227,30 +227,22 @@ app.get('/api/auth/discord/start', (req, res) => {
 // Retour de Discord : redirige vers le SPA avec un résultat.
 app.get('/api/auth/discord/callback', async (req, res) => {
   const origin = frontendOrigin(req)
-  const fail = (reason) => {
-    console.log('[discord-oauth] fail =>', reason)
-    return res.redirect(`${origin}/?derr=${reason}`)
-  }
-  console.log('[discord-oauth] callback hit; proto=%s host=%s code=%s', req.protocol, req.get('host'), req.query.code ? 'oui' : 'non')
+  const fail = (reason) => res.redirect(`${origin}/?derr=${reason}`)
   if (!discordEnabled()) return fail('disabled')
 
   const st = verifyState(String(req.query.state || ''))
   const code = String(req.query.code || '')
-  console.log('[discord-oauth] state valide=%s mode=%s redirect_uri=%s', !!st, st && st.mode, callbackUri(req))
   if (!st || !code) return fail('state')
 
   try {
     const tok = await exchangeCode(code, callbackUri(req))
-    console.log('[discord-oauth] token ok=%s', !!(tok && tok.access_token))
     const du = await fetchDiscordUser(tok.access_token)
-    console.log('[discord-oauth] discord user id=%s', du && du.id)
     if (!du || !du.id) return fail('oauth')
 
     if (st.mode === 'link') {
       const existing = getUserByDiscordId(du.id)
       if (existing && existing.id !== st.uid) return fail('taken')
       setDiscordId(st.uid, du.id)
-      console.log('[discord-oauth] lié uid=%s', st.uid)
       return res.redirect(`${origin}/?dlink=ok`)
     }
     // mode login : le compte Discord doit déjà être lié.
