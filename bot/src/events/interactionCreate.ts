@@ -2,8 +2,10 @@ import { MessageFlags, type Collection, type Interaction, type InteractionReplyO
 import type { Command } from '../lib/command.js'
 import { handleAutoroleSelect, SELECT_ID } from '../commands/autorole.js'
 import {
+  handleReactionCreateSelect,
   handleReactionAddSelect,
   handleReactionRemoveSelect,
+  CREATE_PREFIX,
   ADD_PREFIX,
   REMOVE_PREFIX,
 } from '../commands/reactionrole.js'
@@ -37,6 +39,10 @@ export async function onInteraction(
   if (interaction.isRoleSelectMenu()) {
     if (interaction.customId === SELECT_ID) {
       await handleAutoroleSelect(interaction).catch((err) => console.error('[autorole:select]', err))
+    } else if (interaction.customId.startsWith(CREATE_PREFIX)) {
+      await handleReactionCreateSelect(interaction).catch((err) =>
+        console.error('[reactionrole:create]', err),
+      )
     } else if (interaction.customId.startsWith(ADD_PREFIX)) {
       await handleReactionAddSelect(interaction).catch((err) =>
         console.error('[reactionrole:add]', err),

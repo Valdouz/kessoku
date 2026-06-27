@@ -10,6 +10,8 @@ import {
   type ChatInputCommandInteraction,
   type RoleSelectMenuInteraction,
   type StringSelectMenuInteraction,
+  type Guild,
+  type Message,
 } from 'discord.js'
 import type { Command } from '../lib/command.js'
 import {
@@ -28,8 +30,19 @@ import { suggestHeart } from '../lib/hearts.js'
 import { normalizeEmoji } from '../lib/emoji.js'
 
 const ACCENT = 0xff2e85
+export const CREATE_PREFIX = 'reactionrole:create:'
 export const ADD_PREFIX = 'reactionrole:add:'
 export const REMOVE_PREFIX = 'reactionrole:remove:'
+
+// Brouillons de panneau en attente de sélection des rôles (clé = id de l'interaction /panel).
+// Le bot écrit le message une fois les rôles choisis ; on garde juste titre/description ici.
+interface PendingPanel {
+  guildId: string
+  channelId: string
+  title: string | null
+  description: string | null
+}
+const pending = new Map<string, PendingPanel>()
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -40,7 +53,7 @@ export const command: Command = {
     .addSubcommand((s) =>
       s
         .setName('panel')
-        .setDescription('Créer un panneau de rôles par réaction dans ce salon')
+        .setDescription('Créer un panneau : choisis les rôles, le bot écrit le message')
         .addStringOption((o) => o.setName('titre').setDescription('Titre du panneau'))
         .addStringOption((o) =>
           o.setName('description').setDescription('Texte affiché en haut du panneau'),
@@ -49,7 +62,7 @@ export const command: Command = {
     .addSubcommand((s) =>
       s
         .setName('add')
-        .setDescription('Ajouter un rôle au panneau (émoji cœur proposé automatiquement)')
+        .setDescription('Ajouter des rôles à un panneau (émoji cœur proposé automatiquement)')
         .addStringOption((o) =>
           o.setName('message').setDescription('ID du message panneau (défaut : le dernier de ce salon)'),
         ),
@@ -91,7 +104,7 @@ export function renderPanelEmbed(panel: ReactionPanel): EmbedBuilder {
   const roles = listReactionRoles(panel.message_id)
   const lines = roles.length
     ? roles.map((r) => `${r.emoji} ${roleMention(r.role_id)}`).join('\n')
-    : '_Aucun rôle pour l’instant — ajoute-en avec_ `/reactionrole add`.'
+    : '_Aucun rôle pour l’instant._'
   return new EmbedBuilder()
     .setColor(ACCENT)
     .setTitle(panel.title || '🎟️ Choisis tes rôles')
@@ -110,41 +123,162 @@ function resolvePanel(interaction: ChatInputCommandInteraction): ReactionPanel |
   return undefined
 }
 
+/**
+ * Attribue une liste de rôles à un panneau : un émoji cœur unique par rôle,
+ * écrit les mappings, pose les réactions et met l'embed du message à jour.
+ */
+async function applyRolesToMessage(
+  guild: Guild,
+  message: Message,
+  panel: ReactionPanel,
+  roleIds: string[],
+): Promise<{ added: { roleId: string; emoji: string; assignable: boolean }[]; ranOut: boolean }> {
+  const me = await guild.members.fetchMe()
+  const existing = new Set(listReactionRoles(panel.message_id).map((r) => r.role_id))
+  const used = new Set<string>([...getUsedEmojis(guild.id), ...panelEmojis(panel.message_id)])
+
+  const added: { roleId: string; emoji: string; assignable: boolean }[] = []
+  let ranOut = false
+
+  for (const roleId of roleIds) {
+    if (existing.has(roleId)) continue // déjà dans ce panneau
+    const role = guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId).catch(() => null))
+    if (!role || role.id === guild.id || role.managed) continue
+
+    const emoji = suggestHeart(role.color, used)
+    if (!emoji) {
+      ranOut = true
+      break
+    }
+    used.add(emoji)
+    addReactionRole(panel.message_id, emoji, role.id)
+    setRoleEmoji(guild.id, role.id, emoji)
+    added.push({ roleId: role.id, emoji, assignable: role.position < me.roles.highest.position })
+  }
+
+  // Pose les réactions puis met l'embed à jour (lit la liste fraîche en base).
+  for (const a of added) await message.react(a.emoji).catch(() => {})
+  await message.edit({ embeds: [renderPanelEmbed(getPanel(panel.message_id) ?? panel)] }).catch(() => {})
+
+  return { added, ranOut }
+}
+
+/** Récapitulatif (embed éphémère) après attribution de rôles. */
+function summaryEmbed(
+  added: { roleId: string; emoji: string; assignable: boolean }[],
+  ranOut: boolean,
+  url?: string,
+): EmbedBuilder {
+  const embed = new EmbedBuilder().setColor(ACCENT)
+  if (!added.length) {
+    embed.setTitle('Aucun rôle ajouté').setDescription(
+      'Ces rôles étaient déjà dans le panneau, ou non attribuables (rôle géré / @everyone).',
+    )
+    return embed
+  }
+  embed
+    .setTitle(`✅ ${added.length} rôle(s) ajouté(s)`)
+    .setDescription(added.map((a) => `${a.emoji} ${roleMention(a.roleId)}`).join('\n'))
+  if (url) embed.addFields({ name: 'Panneau', value: url })
+
+  const blocked = added.filter((a) => !a.assignable)
+  if (blocked.length)
+    embed.addFields({
+      name: '⚠️ Hiérarchie à corriger',
+      value:
+        `Je ne pourrai pas donner ${blocked.map((a) => roleMention(a.roleId)).join(', ')} ` +
+        'tant que **mon rôle** n’est pas **au-dessus** d’eux (avec la permission **Gérer les rôles**).',
+    })
+  if (ranOut)
+    embed.addFields({
+      name: 'ℹ️ Émojis épuisés',
+      value: 'Tous les cœurs disponibles sont déjà utilisés dans ce panneau ; certains rôles n’ont pas été ajoutés.',
+    })
+  return embed
+}
+
 // ── /reactionrole panel ──────────────────────────────────────────────────────
+// Étape 1 : on demande les rôles. Le message sera écrit par le bot après sélection.
 async function doPanel(interaction: ChatInputCommandInteraction) {
   const guild = interaction.guild
   const channel = interaction.channel
-  if (!guild || !channel || !channel.isTextBased() || channel.isDMBased()) {
+  if (!guild || !interaction.channelId || !channel || !channel.isTextBased() || channel.isDMBased()) {
     await interaction.reply({
       content: 'À utiliser dans un salon de serveur.',
       flags: MessageFlags.Ephemeral,
     })
     return
   }
-  const title = interaction.options.getString('titre')
-  const description = interaction.options.getString('description')
+  pending.set(interaction.id, {
+    guildId: guild.id,
+    channelId: interaction.channelId,
+    title: interaction.options.getString('titre'),
+    description: interaction.options.getString('description'),
+  })
+  // Nettoyage si jamais l'utilisateur ne sélectionne rien.
+  setTimeout(() => pending.delete(interaction.id), 10 * 60 * 1000).unref?.()
 
-  // On poste d'abord un brouillon, puis on l'enregistre une fois l'ID du message connu.
-  const draft: ReactionPanel = {
-    message_id: 'draft',
-    guild_id: guild.id,
-    channel_id: channel.id,
-    title,
-    description,
-    created_at: '',
-  }
-  const message = await channel.send({ embeds: [renderPanelEmbed(draft)] })
-  createPanel(guild.id, channel.id, message.id, title, description)
-
+  const row = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
+    new RoleSelectMenuBuilder()
+      .setCustomId(CREATE_PREFIX + interaction.id)
+      .setPlaceholder('Choisis les rôles du panneau…')
+      .setMinValues(1)
+      .setMaxValues(25),
+  )
   const embed = new EmbedBuilder()
     .setColor(ACCENT)
-    .setTitle('✅ Panneau créé')
+    .setTitle('Nouveau panneau de rôles')
     .setDescription(
-      `Ton panneau est en place. Ajoute des rôles avec **\`/reactionrole add\`** ` +
-        `(le bot proposera un émoji cœur à la couleur du rôle 💜).`,
+      'Sélectionne les **rôles** à proposer. Le bot **écrira le message** automatiquement, ' +
+        'avec un **émoji cœur** à la couleur de chaque rôle. 💜',
     )
-    .addFields({ name: 'Message', value: message.url })
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral })
+  await interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral })
+}
+
+// Étape 2 : rôles choisis → le bot écrit le message complet.
+export async function handleReactionCreateSelect(interaction: RoleSelectMenuInteraction) {
+  if (!interaction.guild) return
+  const draft = pending.get(interaction.customId.slice(CREATE_PREFIX.length))
+  pending.delete(interaction.customId.slice(CREATE_PREFIX.length))
+  if (!draft) {
+    await interaction.update({
+      content: 'Cette création a expiré. Relance `/reactionrole panel`.',
+      embeds: [],
+      components: [],
+    })
+    return
+  }
+
+  const channel = await interaction.guild.channels.fetch(draft.channelId).catch(() => null)
+  if (!channel || !channel.isTextBased()) {
+    await interaction.update({ content: 'Salon introuvable.', embeds: [], components: [] })
+    return
+  }
+
+  // Le bot écrit le message, puis on y attribue les rôles sélectionnés.
+  const draftPanel: ReactionPanel = {
+    message_id: 'draft',
+    guild_id: interaction.guild.id,
+    channel_id: draft.channelId,
+    title: draft.title,
+    description: draft.description,
+    created_at: '',
+  }
+  const message = await channel.send({ embeds: [renderPanelEmbed(draftPanel)] })
+  createPanel(interaction.guild.id, draft.channelId, message.id, draft.title, draft.description)
+  const panel = getPanel(message.id)!
+
+  const { added, ranOut } = await applyRolesToMessage(
+    interaction.guild,
+    message,
+    panel,
+    interaction.values,
+  )
+
+  await interaction.update({
+    embeds: [summaryEmbed(added, ranOut, message.url)],
+    components: [],
+  })
 }
 
 // ── /reactionrole add ────────────────────────────────────────────────────────
@@ -161,16 +295,16 @@ async function doAdd(interaction: ChatInputCommandInteraction) {
   const row = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
     new RoleSelectMenuBuilder()
       .setCustomId(ADD_PREFIX + panel.message_id)
-      .setPlaceholder('Choisis le rôle à ajouter au panneau…')
+      .setPlaceholder('Choisis les rôles à ajouter…')
       .setMinValues(1)
-      .setMaxValues(1),
+      .setMaxValues(25),
   )
   const embed = new EmbedBuilder()
     .setColor(ACCENT)
-    .setTitle('Ajouter un rôle par réaction')
+    .setTitle('Ajouter des rôles au panneau')
     .setDescription(
-      'Sélectionne le rôle. Un **émoji cœur** à sa couleur (libre dans ce panneau) lui sera attribué, ' +
-        'et le bot ajoutera la réaction au panneau. 💜',
+      'Sélectionne un ou plusieurs rôles. Un **émoji cœur** à leur couleur (libre dans ce panneau) ' +
+        'leur sera attribué, et le bot ajoutera les réactions. 💜',
     )
   await interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral })
 }
@@ -183,66 +317,30 @@ export async function handleReactionAddSelect(interaction: RoleSelectMenuInterac
     await interaction.update({ content: 'Panneau introuvable.', embeds: [], components: [] })
     return
   }
-
-  const roleId = interaction.values[0]
-  const role =
-    interaction.guild.roles.cache.get(roleId) ?? (await interaction.guild.roles.fetch(roleId))
-  if (!role) {
-    await interaction.update({ content: 'Rôle introuvable.', embeds: [], components: [] })
-    return
-  }
-
-  const me = await interaction.guild.members.fetchMe()
-  const assignable =
-    role.id !== interaction.guild.id && !role.managed && role.position < me.roles.highest.position
-
-  // Émoji cœur : couleur du rôle, libre dans ce panneau (et de préférence dans la guilde).
-  const used = new Set<string>([
-    ...getUsedEmojis(interaction.guild.id, role.id),
-    ...panelEmojis(messageId),
-  ])
-  const emoji = suggestHeart(role.color, used)
-  if (!emoji) {
+  const channel = await interaction.guild.channels.fetch(panel.channel_id).catch(() => null)
+  const message =
+    channel && channel.isTextBased()
+      ? await channel.messages.fetch(messageId).catch(() => null)
+      : null
+  if (!message) {
     await interaction.update({
-      content: 'Plus aucun émoji cœur disponible pour ce panneau.',
+      content: 'Message du panneau introuvable (supprimé ?).',
       embeds: [],
       components: [],
     })
     return
   }
 
-  addReactionRole(messageId, emoji, role.id)
-  setRoleEmoji(interaction.guild.id, role.id, emoji)
-
-  // Ajoute la réaction sur le message du panneau + rafraîchit l'embed.
-  const channel = await interaction.guild.channels.fetch(panel.channel_id).catch(() => null)
-  let reacted = false
-  if (channel && channel.isTextBased()) {
-    const message = await channel.messages.fetch(messageId).catch(() => null)
-    if (message) {
-      await message.react(emoji).catch(() => {})
-      await message.edit({ embeds: [renderPanelEmbed(panel)] }).catch(() => {})
-      reacted = true
-    }
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(role.color || ACCENT)
-    .setTitle('✅ Rôle ajouté au panneau')
-    .setDescription(`${emoji} ${roleMention(role.id)} — réagis avec ${emoji} pour l’obtenir.`)
-  if (!reacted)
-    embed.addFields({
-      name: '⚠️ Réaction non posée',
-      value: 'Je n’ai pas pu réagir sur le message. Vérifie mes permissions **Ajouter des réactions**.',
-    })
-  if (!assignable)
-    embed.addFields({
-      name: '⚠️ Action requise',
-      value:
-        'Je ne pourrai pas attribuer ce rôle tel quel. Place **mon rôle au-dessus** de celui-ci ' +
-        'et donne-moi la permission **Gérer les rôles**.',
-    })
-  await interaction.update({ embeds: [embed], components: [] })
+  const { added, ranOut } = await applyRolesToMessage(
+    interaction.guild,
+    message,
+    panel,
+    interaction.values,
+  )
+  await interaction.update({
+    embeds: [summaryEmbed(added, ranOut, message.url)],
+    components: [],
+  })
 }
 
 // ── /reactionrole remove ─────────────────────────────────────────────────────

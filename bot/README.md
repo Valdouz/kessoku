@@ -45,10 +45,11 @@ npm start                 # ou via PM2 :  pm2 start dist/index.js --name kessoku
 
 ## Rôles par réaction
 Un **panneau** (embed) sur lequel les membres réagissent pour s'attribuer un rôle.
-- `/reactionrole panel [titre] [description]` — poste un panneau dans le salon courant.
-- `/reactionrole add [message]` — sélecteur de rôle ; le bot **propose un émoji cœur** à la couleur
-  du rôle (unique dans le panneau), pose la réaction et met l'embed à jour. Sans `message`, vise le
-  dernier panneau du salon.
+- `/reactionrole panel [titre] [description]` — **tu choisis les rôles, le bot écrit le message
+  automatiquement** : un sélecteur de rôles s'ouvre (jusqu'à 25), puis le bot poste le panneau avec
+  un **émoji cœur** à la couleur de chaque rôle et pose les réactions.
+- `/reactionrole add [message]` — ajoute d'autres rôles à un panneau existant (mêmes cœurs auto).
+  Sans `message`, vise le dernier panneau du salon.
 - `/reactionrole remove [message]` — retire un rôle (et sa réaction) du panneau.
 - `/reactionrole list [message]` — affiche les rôles d'un panneau.
 
