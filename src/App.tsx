@@ -28,7 +28,40 @@ export default function App() {
   }, [])
 
   // Vérifie la session au démarrage, puis connecte la synchro si authentifié.
+  // Gère aussi le retour de « Se connecter avec Discord » (paramètres dans l'URL).
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const dlogin = params.get('dlogin')
+    const dlink = params.get('dlink')
+    const derr = params.get('derr')
+    if (dlogin || dlink || derr) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash)
+    }
+
+    const errMsg = (r: string): string =>
+      ({
+        notlinked:
+          "Ce compte Discord n'est lié à aucun compte. Connecte-toi puis lie ton Discord dans Réglages.",
+        taken: 'Ce compte Discord est déjà lié à un autre utilisateur.',
+        disabled: 'La connexion Discord est désactivée.',
+        state: 'Lien expiré, réessaie.',
+        oauth: 'Échec de la connexion Discord.',
+      })[r] || 'Échec de la connexion Discord.'
+
+    if (dlogin) {
+      useAuth.setState({ status: 'loading' })
+      useAuth
+        .getState()
+        .claimDiscordLogin(dlogin)
+        .then((ok) => (ok ? initCollab() : useAuth.setState({ status: 'anon' })))
+      return
+    }
+    if (dlink === 'ok') useAuth.getState().setNotice({ kind: 'ok', text: 'Compte Discord lié ✓' })
+    if (derr) {
+      useAuth.setState({ error: errMsg(derr) })
+      useAuth.getState().setNotice({ kind: 'err', text: errMsg(derr) })
+    }
+
     useAuth
       .getState()
       .bootstrap()

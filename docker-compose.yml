@@ -29,6 +29,9 @@ services:
       - JWT_SECRET=${JWT_SECRET:-}
       # Active GET /api/next-event (lu par le bot Discord). Vide => endpoint désactivé.
       - SERVICE_TOKEN=${SERVICE_TOKEN:-}
+      # « Se connecter avec Discord » (OAuth2). Vide => bouton/endpoints désactivés.
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
     volumes:
       - kessoku-data:/data
     expose:

@@ -10,6 +10,7 @@ export interface AuthUser {
   id: number
   username: string
   role: Role
+  discordId?: string | null
 }
 
 /** Cible d'un aperçu « voir en tant que » (admin uniquement). */
@@ -77,11 +78,15 @@ interface AuthState {
   user: AuthUser | null
   status: AuthStatus
   error: string
+  /** Message transitoire (ex. retour de liaison Discord). */
+  notice: { kind: 'ok' | 'err'; text: string } | null
   /** Aperçu « voir en tant que » (admin) — purement visuel, n'affecte pas le compte. */
   previewAs: PreviewTarget | null
   login: (username: string, password: string) => Promise<boolean>
+  claimDiscordLogin: (code: string) => Promise<boolean>
   logout: () => void
   bootstrap: () => Promise<void>
+  setNotice: (notice: AuthState['notice']) => void
   setPreviewAs: (target: PreviewTarget | null) => void
   exitPreview: () => void
 }
@@ -93,7 +98,9 @@ export const useAuth = create<AuthState>((set, get) => ({
   user: init.user,
   status: init.token ? 'loading' : 'anon',
   error: '',
+  notice: null,
   previewAs: null,
+  setNotice: (notice) => set({ notice }),
   setPreviewAs: (target) => set({ previewAs: target }),
   exitPreview: () => set({ previewAs: null }),
 
@@ -107,6 +114,28 @@ export const useAuth = create<AuthState>((set, get) => ({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         set({ error: (data as { error?: string }).error || 'Échec de la connexion.' })
+        return false
+      }
+      save(data.token, data.user)
+      set({ token: data.token, user: data.user, status: 'authed', error: '' })
+      return true
+    } catch {
+      set({ error: 'Serveur injoignable.' })
+      return false
+    }
+  },
+
+  // Termine une connexion « Se connecter avec Discord » via le code à usage unique.
+  claimDiscordLogin: async (code) => {
+    try {
+      const res = await fetch('/api/auth/discord/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        set({ error: (data as { error?: string }).error || 'Échec de la connexion Discord.' })
         return false
       }
       save(data.token, data.user)

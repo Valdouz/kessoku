@@ -39,6 +39,13 @@ try {
 } catch {
   /* colonne déjà présente */
 }
+try {
+  db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT')
+} catch {
+  /* colonne déjà présente */
+}
+// Un compte Discord ne peut être lié qu'à un seul compte du site (les NULL restent libres).
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord ON users(discord_id) WHERE discord_id IS NOT NULL')
 
 // ── Utilisateurs ─────────────────────────────────────────────────────────────
 const BCRYPT_ROUNDS = 10
@@ -105,6 +112,17 @@ function normalizeAccess(value) {
 }
 export function deleteUser(id) {
   db.prepare('DELETE FROM users WHERE id = ?').run(id)
+}
+
+// ── Liaison Discord ──────────────────────────────────────────────────────────
+export function getUserByDiscordId(discordId) {
+  return db.prepare('SELECT * FROM users WHERE discord_id = ?').get(discordId)
+}
+export function setDiscordId(userId, discordId) {
+  db.prepare('UPDATE users SET discord_id = ? WHERE id = ?').run(discordId, userId)
+}
+export function clearDiscordId(userId) {
+  db.prepare('UPDATE users SET discord_id = NULL WHERE id = ?').run(userId)
 }
 export function setRole(id, role) {
   const r = role === 'admin' ? 'admin' : 'member'

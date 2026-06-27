@@ -7,12 +7,15 @@
 import express from 'express'
 import http from 'node:http'
 import { WebSocketServer } from 'ws'
+import { randomBytes } from 'node:crypto'
 import {
   seedAdmin, getUserByUsername, getUserById, listUsers, createUser, deleteUser,
   countAdmins, setPassword, verifyPassword, getWorkspace, saveWorkspace,
   setEventAccess, grantEventAccess, setRole,
+  getUserByDiscordId, setDiscordId, clearDiscordId,
 } from './db.mjs'
-import { signToken, verifyToken } from './auth.mjs'
+import { signToken, verifyToken, signState, verifyState } from './auth.mjs'
+import { discordEnabled, authorizeUrl, exchangeCode, fetchDiscordUser } from './discord.mjs'
 import { applyOpsToEvents } from './sync.mjs'
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 1234
@@ -178,10 +181,100 @@ app.post('/api/login', loginThrottle, (req, res) => {
   res.json({ token: signToken(user), user: { id: user.id, username: user.username, role: user.role } })
 })
 
+// ── « Se connecter avec Discord » (OAuth2) ───────────────────────────────────
+// Config publique pour l'UI (affiche/masque le bouton Discord).
+app.get('/api/public-config', (_req, res) => {
+  res.json({ discordLogin: discordEnabled() })
+})
+
+// Codes de connexion à usage unique (évite de mettre le JWT dans l'URL de redirection).
+const pendingLogins = new Map() // code -> { uid, exp }
+function purgeLogins() {
+  const now = Date.now()
+  for (const [code, v] of pendingLogins) if (v.exp < now) pendingLogins.delete(code)
+}
+
+function callbackUri(req) {
+  return `${req.protocol}://${req.get('host')}/api/auth/discord/callback`
+}
+function frontendOrigin(req) {
+  return `${req.protocol}://${req.get('host')}`
+}
+
+// Démarrage du flux : renvoie l'URL d'autorisation. mode=login (public) ou link (authentifié).
+app.get('/api/auth/discord/start', (req, res) => {
+  if (!discordEnabled()) return res.status(503).json({ error: 'Connexion Discord désactivée.' })
+  const mode = req.query.mode === 'link' ? 'link' : 'login'
+  const payload = { mode, n: randomBytes(8).toString('hex') }
+  if (mode === 'link') {
+    // Lier exige d'être déjà connecté : on capture l'utilisateur dans l'état signé.
+    const h = req.headers.authorization || ''
+    const token = h.startsWith('Bearer ') ? h.slice(7) : null
+    const claims = token ? verifyToken(token) : null
+    const u = claims && getUserById(claims.id)
+    if (!u || u.token_version !== claims.tv) return res.status(401).json({ error: 'Non authentifié.' })
+    payload.uid = u.id
+  }
+  const state = signState(payload)
+  res.json({ url: authorizeUrl(callbackUri(req), state) })
+})
+
+// Retour de Discord : redirige vers le SPA avec un résultat.
+app.get('/api/auth/discord/callback', async (req, res) => {
+  const origin = frontendOrigin(req)
+  const fail = (reason) => res.redirect(`${origin}/?derr=${reason}`)
+  if (!discordEnabled()) return fail('disabled')
+
+  const st = verifyState(String(req.query.state || ''))
+  const code = String(req.query.code || '')
+  if (!st || !code) return fail('state')
+
+  try {
+    const tok = await exchangeCode(code, callbackUri(req))
+    const du = await fetchDiscordUser(tok.access_token)
+    if (!du || !du.id) return fail('oauth')
+
+    if (st.mode === 'link') {
+      const existing = getUserByDiscordId(du.id)
+      if (existing && existing.id !== st.uid) return fail('taken')
+      setDiscordId(st.uid, du.id)
+      return res.redirect(`${origin}/?dlink=ok`)
+    }
+    // mode login : le compte Discord doit déjà être lié.
+    const u = getUserByDiscordId(du.id)
+    if (!u) return fail('notlinked')
+    purgeLogins()
+    const oneTime = randomBytes(24).toString('hex')
+    pendingLogins.set(oneTime, { uid: u.id, exp: Date.now() + 120_000 })
+    return res.redirect(`${origin}/?dlogin=${oneTime}`)
+  } catch (e) {
+    console.error('[discord-oauth]', e?.message || e)
+    return fail('oauth')
+  }
+})
+
+// Échange le code à usage unique contre un vrai jeton de session.
+app.post('/api/auth/discord/claim', (req, res) => {
+  purgeLogins()
+  const code = String((req.body || {}).code || '')
+  const rec = pendingLogins.get(code)
+  if (!rec || rec.exp < Date.now()) return res.status(400).json({ error: 'Code de connexion invalide ou expiré.' })
+  pendingLogins.delete(code)
+  const u = getUserById(rec.uid)
+  if (!u) return res.status(400).json({ error: 'Compte introuvable.' })
+  res.json({ token: signToken(u), user: { id: u.id, username: u.username, role: u.role, discordId: u.discord_id || null } })
+})
+
+// Délier son compte Discord.
+app.delete('/api/auth/discord/link', authMiddleware, (req, res) => {
+  clearDiscordId(req.user.id)
+  res.json({ ok: true })
+})
+
 app.get('/api/me', authMiddleware, (req, res) => {
   const u = getUserById(req.user.id)
   if (!u) return res.status(401).json({ error: 'Compte introuvable.' })
-  res.json({ user: { id: u.id, username: u.username, role: u.role } })
+  res.json({ user: { id: u.id, username: u.username, role: u.role, discordId: u.discord_id || null } })
 })
 
 app.post('/api/change-password', authMiddleware, (req, res) => {

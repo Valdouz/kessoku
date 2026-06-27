@@ -36,3 +36,15 @@ export function verifyToken(token) {
     return null
   }
 }
+
+// État OAuth signé (anti-CSRF), courte durée de vie.
+export function signState(payload) {
+  return jwt.sign(payload, SECRET, { algorithm: 'HS256', expiresIn: '10m' })
+}
+export function verifyState(token) {
+  try {
+    return jwt.verify(token, SECRET, { algorithms: ['HS256'] })
+  } catch {
+    return null
+  }
+}
