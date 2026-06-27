@@ -45,6 +45,8 @@ function ensureColumn(table: string, column: string, decl: string): void {
 ensureColumn('guild_settings', 'welcome_channel_id', 'welcome_channel_id TEXT')
 ensureColumn('guild_settings', 'announce_channel_id', 'announce_channel_id TEXT')
 ensureColumn('guild_settings', 'last_reminder', 'last_reminder TEXT')
+// Repère (ms) du dernier membre accueilli — sert au rattrapage après une coupure.
+ensureColumn('guild_settings', 'welcome_last_ts', 'welcome_last_ts TEXT')
 
 export interface GuildSettings {
   guild_id: string
@@ -53,6 +55,7 @@ export interface GuildSettings {
   welcome_channel_id: string | null
   announce_channel_id: string | null
   last_reminder: string | null
+  welcome_last_ts: string | null
   updated_at: string
 }
 
@@ -73,6 +76,8 @@ function setField(guildId: string, column: string, value: string | null): void {
 
 export const setWelcomeChannel = (guildId: string, channelId: string | null): void =>
   setField(guildId, 'welcome_channel_id', channelId)
+export const setWelcomeWatermark = (guildId: string, ms: number): void =>
+  setField(guildId, 'welcome_last_ts', String(ms))
 export const setAnnounceChannel = (guildId: string, channelId: string | null): void =>
   setField(guildId, 'announce_channel_id', channelId)
 export const setLastReminder = (guildId: string, value: string | null): void =>

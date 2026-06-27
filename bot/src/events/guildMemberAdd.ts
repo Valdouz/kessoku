@@ -1,6 +1,7 @@
 import type { GuildMember } from 'discord.js'
-import { getGuild } from '../db.js'
-import { fetchEventInfo, welcomeEmbed } from '../lib/event.js'
+import { getGuild, setWelcomeWatermark } from '../db.js'
+import { fetchEventInfo } from '../lib/event.js'
+import { sendWelcome } from '../lib/welcome.js'
 
 export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
   if (member.user.bot) return
@@ -18,14 +19,13 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
     }
   }
 
-  // 2) Message d'accueil (si un salon est configuré).
+  // 2) Message d'accueil (si un salon est configuré). On n'avance le repère qu'en
+  //    cas de succès : sinon le rattrapage au prochain démarrage réessaiera.
   if (settings?.welcome_channel_id) {
     try {
-      const channel = await member.guild.channels.fetch(settings.welcome_channel_id).catch(() => null)
-      if (channel && channel.isTextBased()) {
-        const info = await fetchEventInfo()
-        await channel.send({ content: `${member}`, embeds: [welcomeEmbed(member, info)] })
-      }
+      const info = await fetchEventInfo()
+      const ok = await sendWelcome(member, settings.welcome_channel_id, info)
+      if (ok && member.joinedTimestamp) setWelcomeWatermark(member.guild.id, member.joinedTimestamp)
     } catch (err) {
       console.warn(`[accueil] échec du message pour ${member.user.tag} :`, (err as Error).message)
     }
