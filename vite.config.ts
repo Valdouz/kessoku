@@ -45,6 +45,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
+        // Ne PAS intercepter l'API ni la synchro : sinon le service worker sert
+        // l'app à la place (ex. le retour OAuth /api/auth/discord/callback => page blanche).
+        navigateFallbackDenylist: [/^\/api\//, /^\/sync/],
       },
       devOptions: { enabled: false },
     }),
