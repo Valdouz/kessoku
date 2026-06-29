@@ -57,6 +57,20 @@ npm start                 # ou via PM2 :  pm2 start dist/index.js --name kessoku
 
 > Nécessite `SITE_API_URL` + `SITE_API_TOKEN` (= `SERVICE_TOKEN` du backend), comme `/festival`.
 
+## Mode jour J (cues temps réel du conducteur)
+Le jour de l'événement, le bot suit le **conducteur** (du site) et poste des cues dans un salon :
+le **début de chaque passage**, et un **préavis** avant la fin (mention du rôle plateau pour préparer
+le changement). Heures interprétées en **Europe/Paris**.
+- `/live salon #salon` — salon des cues.
+- `/live role @role` — rôle mentionné avant chaque fin de passage (plateau/technique).
+- `/live preavis 5` — minutes avant la fin (défaut 5).
+- `/live on` / `/live off` — activer / désactiver.
+- `/live test` — poster un cue d'exemple maintenant.
+- `/live etat` — voir la configuration.
+
+> Chaque cue n'est posté qu'une fois (anti-doublon en base, survit aux redémarrages) et ne se
+> déclenche que **le jour même**. Pas de rebuild serveur nécessaire (lit `/api/programme`).
+
 ## Accueil & annonces
 - `/accueil salon #salon` — message de bienvenue (embed + infos événement) à l'arrivée d'un membre.
   `/accueil apercu` pour prévisualiser, `/accueil off` pour désactiver.

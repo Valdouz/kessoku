@@ -35,6 +35,13 @@ db.exec(`
     role_id TEXT NOT NULL,
     PRIMARY KEY (message_id, emoji)
   );
+  -- Cues du « jour J » déjà postés (anti-doublon, survit aux redémarrages).
+  CREATE TABLE IF NOT EXISTS live_fired (
+    guild_id TEXT NOT NULL,
+    cue_key TEXT NOT NULL,
+    fired_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, cue_key)
+  );
 `)
 
 // Migrations additives idempotentes (colonnes ajoutées après coup).
@@ -47,6 +54,11 @@ ensureColumn('guild_settings', 'announce_channel_id', 'announce_channel_id TEXT'
 ensureColumn('guild_settings', 'last_reminder', 'last_reminder TEXT')
 // Repère (ms) du dernier membre accueilli — sert au rattrapage après une coupure.
 ensureColumn('guild_settings', 'welcome_last_ts', 'welcome_last_ts TEXT')
+// Mode « jour J » : salon des cues, rôle plateau à pinger, préavis (min), activation.
+ensureColumn('guild_settings', 'live_channel_id', 'live_channel_id TEXT')
+ensureColumn('guild_settings', 'live_role_id', 'live_role_id TEXT')
+ensureColumn('guild_settings', 'live_lead_min', 'live_lead_min TEXT')
+ensureColumn('guild_settings', 'live_enabled', 'live_enabled TEXT')
 
 export interface GuildSettings {
   guild_id: string
@@ -56,6 +68,10 @@ export interface GuildSettings {
   announce_channel_id: string | null
   last_reminder: string | null
   welcome_last_ts: string | null
+  live_channel_id: string | null
+  live_role_id: string | null
+  live_lead_min: string | null
+  live_enabled: string | null
   updated_at: string
 }
 
@@ -88,6 +104,45 @@ export function listAnnounceGuilds(): { guild_id: string; announce_channel_id: s
   return db
     .prepare('SELECT guild_id, announce_channel_id, last_reminder FROM guild_settings WHERE announce_channel_id IS NOT NULL')
     .all() as { guild_id: string; announce_channel_id: string; last_reminder: string | null }[]
+}
+
+// ── Mode « jour J » (cues temps réel du conducteur) ──────────────────────────
+export const setLiveChannel = (guildId: string, channelId: string | null): void =>
+  setField(guildId, 'live_channel_id', channelId)
+export const setLiveRole = (guildId: string, roleId: string | null): void =>
+  setField(guildId, 'live_role_id', roleId)
+export const setLiveLead = (guildId: string, min: number): void =>
+  setField(guildId, 'live_lead_min', String(min))
+export const setLiveEnabled = (guildId: string, on: boolean): void =>
+  setField(guildId, 'live_enabled', on ? '1' : '0')
+
+export interface LiveGuild {
+  guild_id: string
+  live_channel_id: string
+  live_role_id: string | null
+  live_lead_min: string | null
+}
+/** Guildes avec le mode jour J activé et un salon configuré. */
+export function listLiveGuilds(): LiveGuild[] {
+  return db
+    .prepare(
+      `SELECT guild_id, live_channel_id, live_role_id, live_lead_min FROM guild_settings
+       WHERE live_enabled = '1' AND live_channel_id IS NOT NULL`,
+    )
+    .all() as LiveGuild[]
+}
+
+export function hasFired(guildId: string, cueKey: string): boolean {
+  return Boolean(
+    db.prepare('SELECT 1 FROM live_fired WHERE guild_id = ? AND cue_key = ?').get(guildId, cueKey),
+  )
+}
+export function markFired(guildId: string, cueKey: string): void {
+  db.prepare('INSERT OR IGNORE INTO live_fired (guild_id, cue_key, fired_at) VALUES (?, ?, ?)').run(
+    guildId,
+    cueKey,
+    new Date().toISOString(),
+  )
 }
 
 export function setAutorole(guildId: string, roleId: string, emoji: string | null): void {
